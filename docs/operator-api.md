@@ -181,6 +181,83 @@ JSON in the body. The tRPC wire format wraps inputs in `{"json": ...}`.
 
 ---
 
+## Webhooks
+
+Channel-scoped outbound webhooks fire HMAC-signed POSTs whenever an event
+happens on any video belonging to the channel.
+
+### Subscribed events
+
+| Event                  | Fired by                                     |
+| ---------------------- | -------------------------------------------- |
+| `transcode.completed`  | Worker finalise step                         |
+| `transcode.failed`     | Worker failure path                          |
+| `comment.created`      | `comment.create` after a successful insert   |
+
+### Headers
+
+```
+X-Cassette-Event:     <event-name>
+X-Cassette-Signature: sha256=<hmac-hex>
+X-Cassette-Delivery:  <uuid>
+Content-Type:         application/json
+```
+
+The signature is `crypto.createHmac("sha256", secret).update(rawBody).digest("hex")`.
+Verify on the receiver before trusting the payload.
+
+### Payload (transcode events)
+
+```json
+{
+    "event": "transcode.completed",
+    "videoId": "uuid",
+    "channelId": "uuid",
+    "title": "...",
+    "publishedAt": "ISO timestamp"
+}
+```
+
+### Manage webhooks
+
+`/studio/c/<handle>/webhooks` — create, edit, rotate secret, test fire,
+delete, view delivery history. Plaintext secret is shown exactly once on
+create + rotate.
+
+---
+
+## RSS feed per channel
+
+`GET /c/<handle>/feed.xml` returns a valid RSS 2.0 feed of the channel's
+50 most-recent public+ready videos. Cache-Control: `public, max-age=300`.
+Channel pages set `<link rel="alternate" type="application/rss+xml">` so
+feed-reader apps autodiscover.
+
+---
+
+## Tags
+
+Videos can carry up to 12 free-form tags (lowercase `[a-z0-9-]+`,
+≤ 30 chars each). Set them on upload with the `tags` form field
+(comma-separated string), edit later via `video.updateMetadata`, browse
+via `/search?tag=<tag>`. Tags appear as clickable chips on the watch page.
+
+---
+
+## Rate limits
+
+In-memory token-bucket limits (per-process; restart resets):
+
+| Route                | Limit                                           |
+| -------------------- | ----------------------------------------------- |
+| `POST /api/auth/*`   | 10/minute per IP                                |
+| `POST /api/upload`   | 12/hour for session callers, 60/hour for keys   |
+| `comment.create`     | 30/minute per user                              |
+
+429 responses include `Retry-After` in seconds.
+
+---
+
 ## Embed
 
 Any public or unlisted video can be embedded with an `<iframe>`:
