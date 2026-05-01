@@ -275,6 +275,21 @@ be embedded — playback always requires a signed-in channel member.
 
 ---
 
+## Observability
+
+cassette supports optional error capture via [Sentry](https://sentry.io). When `SENTRY_DSN` is set in the environment, exceptions from the transcode worker, the transcribe worker, the auto-prune cron, and the upload route are forwarded to Sentry automatically. When the variable is absent the integration is a complete no-op and the package does not need to be installed.
+
+**Setup:**
+
+```bash
+yarn add @sentry/nextjs          # install the package
+SENTRY_DSN=https://xxx@oXXX.ingest.sentry.io/YYY  # add to .env / docker-compose
+```
+
+No other configuration is required. The DSN is the only supported setting; all other Sentry options use their defaults.
+
+---
+
 ## End-to-end smoke
 
 `scripts/smoke.sh` is the executable contract for these endpoints. It

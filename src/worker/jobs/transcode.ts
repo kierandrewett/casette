@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 import { eq } from "drizzle-orm";
 
 import { env } from "@/env";
+import { captureException } from "@/lib/error-monitoring";
 import { extractEmbeddedCaptions } from "@/lib/transcode/captions";
 import { containerChapters, mergeChapters, parseDescriptionChapters, withEndSec } from "@/lib/transcode/chapters";
 import { FfmpegError, type H264Encoder, resolveH264Encoder, runFfmpeg, spawnFfmpeg } from "@/lib/transcode/ffmpeg";
@@ -108,6 +109,7 @@ export const transcodeHandler = async (jobs: Array<{ data: TranscodePayload }>):
                       ? err.message
                       : String(err);
             await markFailed(videoId, message);
+            captureException(err);
             // Do not re-throw: failing one job should not prevent others in the
             // batch from running. pg-boss marks the job failed via our DB update.
         }

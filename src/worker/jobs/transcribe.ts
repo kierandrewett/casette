@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 
 import { hlsCaptionsPath, paths } from "@/lib/paths";
 import { logger } from "@/lib/log";
+import { captureException } from "@/lib/error-monitoring";
 import { isWhisperAvailable, transcribe } from "@/lib/transcribe/whisper";
 import { db } from "@/server/db/client";
 import { videoCaptions, videos } from "@/server/db/schema/videos";
@@ -30,6 +31,7 @@ export const transcribeHandler = async (jobs: Array<{ data: TranscribePayload }>
                 videoId,
                 err: err instanceof Error ? err.message : String(err),
             });
+            captureException(err);
         }
     }
 };

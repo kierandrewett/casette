@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
+import { toast } from "sonner";
 
 import { api } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
@@ -25,15 +26,25 @@ import {
 interface VideoActionsMenuProps {
     videoId: string;
     videoTitle: string;
+    videoStatus: "queued" | "transcoding" | "ready" | "failed";
     channelHandle: string;
 }
 
-export const VideoActionsMenu = ({ videoId, videoTitle, channelHandle }: VideoActionsMenuProps) => {
+export const VideoActionsMenu = ({ videoId, videoTitle, videoStatus, channelHandle }: VideoActionsMenuProps) => {
     const router = useRouter();
     const [confirmDelete, setConfirmDelete] = useState(false);
 
     const deleteVideo = api.admin.videos.delete.useMutation({
         onSuccess: () => { setConfirmDelete(false); router.refresh(); },
+    });
+
+    const transcribeVideo = api.admin.videos.transcribe.useMutation({
+        onSuccess: () => {
+            toast.success("Captions queued — refresh in a minute or so.");
+        },
+        onError: (err) => {
+            toast.error(`Failed to queue captions: ${err.message}`);
+        },
     });
 
     return (
@@ -55,6 +66,13 @@ export const VideoActionsMenu = ({ videoId, videoTitle, channelHandle }: VideoAc
                         <a href={`/studio/${channelHandle}/videos/${videoId}`} target="_blank" rel="noopener noreferrer">
                             Open in Studio
                         </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                        disabled={videoStatus !== "ready" || transcribeVideo.isPending}
+                        onSelect={() => transcribeVideo.mutate({ videoId })}
+                    >
+                        Generate captions
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem

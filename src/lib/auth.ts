@@ -64,6 +64,15 @@ export const auth = betterAuth({
         expiresIn: 60 * 60 * 24 * 30,
         updateAge: 60 * 60 * 24,
     },
+    databaseHooks: {
+        session: {
+            create: {
+                after: async (session) => {
+                    await import("@/lib/sign-in-alert").then((m) => m.maybeFireSignInAlert(session));
+                },
+            },
+        },
+    },
 });
 
 export type Auth = typeof auth;

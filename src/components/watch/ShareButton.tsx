@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Code2, Link2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Code2, Link2 } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,13 @@ export const ShareButton = ({ videoId, slug, isPrivate = false }: ShareButtonPro
     const [copiedKind, setCopiedKind] = useState<"link" | "embed" | null>(null);
     const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Embed options state.
+    const [embedOptionsOpen, setEmbedOptionsOpen] = useState(false);
+    const [embedAutoplay, setEmbedAutoplay] = useState(false);
+    const [embedMuted, setEmbedMuted] = useState(true); // default muted when autoplay
+    const [embedLoop, setEmbedLoop] = useState(false);
+    const [embedStart, setEmbedStart] = useState(0);
+
     const origin = typeof window !== "undefined" ? window.location.origin : "";
 
     const url = `${origin}/watch/${videoId}${slug ? `?slug=${slug}` : ""}`;
@@ -33,7 +40,18 @@ export const ShareButton = ({ videoId, slug, isPrivate = false }: ShareButtonPro
         typeof navigator.share === "function" &&
         typeof window !== "undefined" &&
         window.matchMedia("(max-width: 768px)").matches;
-    const embedSrc = `${origin}/embed/${videoId}${slug ? `?slug=${slug}` : ""}`;
+
+    const embedSrc = useMemo(() => {
+        const params = new URLSearchParams();
+        if (slug) params.set("slug", slug);
+        if (embedAutoplay) params.set("autoplay", "1");
+        if (embedMuted || embedAutoplay) params.set("muted", "1");
+        if (embedLoop) params.set("loop", "1");
+        if (embedStart > 0) params.set("start", String(embedStart));
+        const qs = params.toString();
+        return `${origin}/embed/${videoId}${qs ? `?${qs}` : ""}`;
+    }, [origin, videoId, slug, embedAutoplay, embedMuted, embedLoop, embedStart]);
+
     const embedSnippet = useMemo(
         () =>
             `<iframe src="${embedSrc}" width="640" height="360" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`,
@@ -178,6 +196,61 @@ export const ShareButton = ({ videoId, slug, isPrivate = false }: ShareButtonPro
                             className="flex-1 h-20 w-full resize-none rounded-md border border-border bg-secondary/50 p-2 text-[11px] font-mono text-foreground/80"
                             aria-label="Embed snippet"
                         />
+
+                        {/* Options disclosure */}
+                        <button
+                            type="button"
+                            onClick={() => setEmbedOptionsOpen((v) => !v)}
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            aria-expanded={embedOptionsOpen}
+                        >
+                            {embedOptionsOpen
+                                ? <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                                : <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />}
+                            Options
+                        </button>
+
+                        {embedOptionsOpen && (
+                            <div className="rounded-md border border-border bg-secondary/30 p-3 space-y-2">
+                                <EmbedCheckbox
+                                    id="embed-autoplay"
+                                    label="Autoplay"
+                                    checked={embedAutoplay}
+                                    onChange={(v) => {
+                                        setEmbedAutoplay(v);
+                                        if (v) setEmbedMuted(true); // autoplay requires muted
+                                    }}
+                                />
+                                <EmbedCheckbox
+                                    id="embed-muted"
+                                    label="Muted"
+                                    checked={embedMuted || embedAutoplay}
+                                    onChange={setEmbedMuted}
+                                    disabled={embedAutoplay}
+                                />
+                                <EmbedCheckbox
+                                    id="embed-loop"
+                                    label="Loop"
+                                    checked={embedLoop}
+                                    onChange={setEmbedLoop}
+                                />
+                                <div className="flex items-center gap-2">
+                                    <label htmlFor="embed-start" className="text-xs text-muted-foreground w-24 shrink-0">
+                                        Start at (s)
+                                    </label>
+                                    <input
+                                        id="embed-start"
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={embedStart}
+                                        onChange={(e) => setEmbedStart(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                                        className="w-20 rounded border border-border bg-background px-2 py-1 text-xs text-foreground"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         <Button
                             variant="secondary"
                             className="w-full"
@@ -202,6 +275,37 @@ export const ShareButton = ({ videoId, slug, isPrivate = false }: ShareButtonPro
         </Popover>
     );
 };
+
+const EmbedCheckbox = ({
+    id,
+    label,
+    checked,
+    onChange,
+    disabled = false,
+}: {
+    id: string;
+    label: string;
+    checked: boolean;
+    onChange: (v: boolean) => void;
+    disabled?: boolean;
+}) => (
+    <div className="flex items-center gap-2">
+        <input
+            id={id}
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => onChange(e.target.checked)}
+            disabled={disabled}
+            className="h-3.5 w-3.5 accent-foreground cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+        <label
+            htmlFor={id}
+            className={cn("text-xs text-muted-foreground cursor-pointer", disabled && "opacity-50 cursor-not-allowed")}
+        >
+            {label}
+        </label>
+    </div>
+);
 
 const ShareIcon = () => (
     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth={1.8} aria-hidden="true">

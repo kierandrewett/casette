@@ -93,11 +93,16 @@ export const videoRouter = createTRPCRouter({
     byId: publicProcedure
         .input(
             z.object({
-                id: z.string().uuid(),
+                // Accepts either the canonical UUID or the short publicId so
+                // /watch/<short> and /watch/<uuid> both resolve to the same
+                // video. The resolver picks the right column based on shape.
+                id: z.string().min(1),
                 slug: z.string().optional(),
             }),
         )
         .query(async ({ ctx, input }) => {
+            const { looksLikeUuid } = await import("@/lib/slug");
+            const isUuid = looksLikeUuid(input.id);
             // Load video + channel in one query.
             const rows = await ctx.db
                 .select({
@@ -112,7 +117,7 @@ export const videoRouter = createTRPCRouter({
                 })
                 .from(videos)
                 .innerJoin(channels, eq(videos.channelId, channels.id))
-                .where(eq(videos.id, input.id))
+                .where(isUuid ? eq(videos.id, input.id) : eq(videos.publicId, input.id))
                 .limit(1);
 
             const row = rows[0];
@@ -703,6 +708,71 @@ export const videoRouter = createTRPCRouter({
                 .returning({ thumbnailPath: videos.thumbnailPath });
 
             return { thumbnailPath: updated?.thumbnailPath ?? relPath };
+        }),
+
+    // ---------------------------------------------------------------------------
+    // setChapters — replace manual chapters for a video. Member-only.
+    // Preserves rows with source='container' or source='description';
+    // replaces all source='manual' rows with the new set.
+    // ---------------------------------------------------------------------------
+    setChapters: protectedProcedure
+        .input(
+            z.object({
+                videoId: z.string().uuid(),
+                chapters: z.array(
+                    z.object({
+                        startSec: z.number().int().nonnegative(),
+                        title: z.string().trim().min(1).max(200),
+                    }),
+                ).max(200),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const videoRows = await ctx.db
+                .select({ channelId: videos.channelId })
+                .from(videos)
+                .where(eq(videos.id, input.videoId))
+                .limit(1);
+            const video = videoRows[0];
+            if (!video) throw new TRPCError({ code: "NOT_FOUND" });
+
+            const memberRows = await ctx.db
+                .select({ role: channelMembers.role })
+                .from(channelMembers)
+                .where(
+                    and(
+                        eq(channelMembers.channelId, video.channelId),
+                        eq(channelMembers.userId, ctx.user.id),
+                    ),
+                )
+                .limit(1);
+            if (!memberRows[0]) throw new TRPCError({ code: "FORBIDDEN" });
+
+            // Delete all manual rows then re-insert. Wrap in a transaction so
+            // the chapter list is never partially replaced on failure.
+            await ctx.db.transaction(async (tx) => {
+                await tx
+                    .delete(videoChapters)
+                    .where(
+                        and(
+                            eq(videoChapters.videoId, input.videoId),
+                            eq(videoChapters.source, "manual"),
+                        ),
+                    );
+
+                if (input.chapters.length > 0) {
+                    await tx.insert(videoChapters).values(
+                        input.chapters.map((ch) => ({
+                            videoId: input.videoId,
+                            startSec: ch.startSec,
+                            title: ch.title,
+                            source: "manual" as const,
+                        })),
+                    );
+                }
+            });
+
+            return { ok: true };
         }),
 
     delete: protectedProcedure

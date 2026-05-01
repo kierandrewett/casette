@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ChannelCustomiseForm } from "@/components/studio/ChannelCustomiseForm";
+import { QuotaPanel } from "@/components/studio/QuotaPanel";
 import { trpc } from "@/lib/trpc/server";
 
 type Props = {
@@ -46,6 +47,16 @@ const CustomiseChannelPage = async ({ params }: Props) => {
     const avatarUrl = channel.avatarPath ? `/api/channel/${channel.id}/asset/avatar` : null;
     const bannerUrl = channel.bannerPath ? `/api/channel/${channel.id}/asset/banner` : null;
 
+    // Load usage / quota data (best-effort — silently omit if it fails).
+    let usageData: { used: number; quota: number | null; autoPruneDays: number | null } | null = null;
+    if (membership.role === "owner") {
+        try {
+            usageData = await trpc.channel.getUsage({ channelId: channel.id });
+        } catch {
+            // Best-effort; silently skip the panel if the call fails.
+        }
+    }
+
     return (
         <main className="mx-auto max-w-3xl px-4 py-10">
             {/* Page header */}
@@ -73,6 +84,19 @@ const CustomiseChannelPage = async ({ params }: Props) => {
                 avatarUrl={avatarUrl}
                 bannerUrl={bannerUrl}
             />
+
+            {/* Quota + auto-prune — owner only */}
+            {membership.role === "owner" && usageData && (
+                <div className="mt-12 border-t border-border pt-10">
+                    <h2 className="mb-6 text-lg font-semibold">Storage &amp; retention</h2>
+                    <QuotaPanel
+                        channelId={channel.id}
+                        initialUsed={usageData.used}
+                        initialQuota={usageData.quota}
+                        initialAutoPruneDays={usageData.autoPruneDays}
+                    />
+                </div>
+            )}
         </main>
     );
 };

@@ -1,4 +1,4 @@
-import { bigint, index, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { citext } from "./_types";
 import { user } from "./auth";
@@ -16,6 +16,10 @@ export const channels = pgTable(
         ownerId: text("owner_id")
             .notNull()
             .references(() => user.id, { onDelete: "restrict" }),
+        // Per-channel upload quota in bytes. NULL = no limit.
+        diskQuotaBytes: bigint("disk_quota_bytes", { mode: "number" }),
+        // Auto-prune: delete public videos older than this many days. NULL = never.
+        autoPruneDays: integer("auto_prune_days"),
         createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     },

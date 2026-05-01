@@ -4,6 +4,29 @@ import "./globals.css";
 import { TRPCProvider } from "@/lib/trpc/client";
 import { Providers } from "./providers";
 
+// Inline script that runs before React hydration to apply the persisted theme,
+// preventing a flash of the wrong colour scheme on load.
+const THEME_SCRIPT = `
+(function(){
+    try {
+        var t = localStorage.getItem('cassette.theme');
+        var html = document.documentElement;
+        if (t === 'light') {
+            html.classList.remove('dark');
+        } else if (t === 'dark') {
+            html.classList.add('dark');
+        } else {
+            // 'system' or unset — follow OS preference.
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                html.classList.add('dark');
+            } else {
+                html.classList.remove('dark');
+            }
+        }
+    } catch(e) {}
+})();
+`.trim();
+
 export const metadata: Metadata = {
     title: {
         default: "cassette",
@@ -11,11 +34,18 @@ export const metadata: Metadata = {
     },
     description: "A self-hosted, YouTube-shaped personal video platform.",
     icons: [{ rel: "icon", url: "/favicon.svg" }],
+    alternates: {
+        types: {
+            "application/rss+xml": [
+                { url: "/feed.xml", title: "cassette · all uploads" },
+            ],
+        },
+    },
 };
 
 export const viewport: Viewport = {
     themeColor: "#000000",
-    colorScheme: "dark",
+    colorScheme: "dark light",
     width: "device-width",
     initialScale: 1,
 };
@@ -23,6 +53,13 @@ export const viewport: Viewport = {
 const RootLayout = ({ children }: { children: React.ReactNode }) => {
     return (
         <html lang="en" className="dark" suppressHydrationWarning>
+            <head>
+                {/* Apply persisted theme before first paint to avoid flash. */}
+                {/* eslint-disable-next-line react/no-danger */}
+                <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+                {/* Version tag for support / debug tooling. */}
+                <meta name="data-cassette-version" content="0.1.0" />
+            </head>
             <body className="min-h-full bg-background text-foreground antialiased">
                 {/* Providers is the outermost client boundary; TRPCProvider sits inside it. */}
                 <Providers>

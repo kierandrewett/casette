@@ -21,12 +21,19 @@ export const videoPrivacy = pgEnum("video_privacy", ["public", "unlisted", "priv
 export const videoStatus = pgEnum("video_status", ["queued", "transcoding", "ready", "failed"]);
 export const videoVariantRung = pgEnum("video_variant_rung", ["360p", "480p", "720p", "1080p"]);
 export const captionSource = pgEnum("caption_source", ["embedded", "sidecar"]);
-export const chapterSource = pgEnum("chapter_source", ["description", "container"]);
+export const chapterSource = pgEnum("chapter_source", ["description", "container", "manual"]);
 
 export const videos = pgTable(
     "videos",
     {
         id: uuid("id").primaryKey().defaultRandom(),
+        // Short, URL-friendly public id (~11 chars). Used in /watch/<id> and
+        // /embed/<id> URLs so they fit on a card and survive being shared
+        // verbatim. The internal UUID stays the canonical foreign-key
+        // identifier; resolvers accept either. The default is generated in
+        // the migration's backfill UPDATE for existing rows; new rows let
+        // the upload route mint the id explicitly via lib/slug.videoPublicId().
+        publicId: text("public_id").notNull().unique(),
         channelId: uuid("channel_id")
             .notNull()
             .references(() => channels.id, { onDelete: "cascade" }),

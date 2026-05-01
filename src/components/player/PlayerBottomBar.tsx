@@ -3,14 +3,17 @@
 import { TimeSlider, useMediaRemote, useMediaState } from "@vidstack/react";
 import { Maximize, Minimize, PictureInPicture2, SkipForward, Volume2, VolumeX } from "lucide-react";
 import Image from "next/image";
+import { useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/utils";
 import { usePlayerStore } from "@/lib/player/store";
+import { readPreferences } from "@/lib/player/preferences";
 import type { VideoChapter } from "@/server/db/schema/videos";
 import type { VideoVariant } from "@/server/db/schema/videos";
 import { CaptionsMenu } from "./CaptionsMenu";
 import { SettingsMenu } from "./SettingsMenu";
+import { SleepTimer, SleepTimerChip, type SleepTimerState } from "./SleepTimer";
 
 interface PlayerBottomBarProps {
     videoId: string;
@@ -32,6 +35,12 @@ export const PlayerBottomBar = ({ videoId, chapters, variants: _variants, active
     const theatre = usePlayerStore((s) => s.theatre);
     const toggleTheatre = usePlayerStore((s) => s.toggleTheatre);
 
+    // Sleep timer state for the chip overlay.
+    const [sleepState, setSleepState] = useState<SleepTimerState>({
+        option: typeof window !== "undefined" ? readPreferences().lastSleepTimer : "off",
+        remainingSec: null,
+    });
+
     const handlePlayPause = () => {
         if (paused) void remote.play();
         else void remote.pause();
@@ -52,6 +61,10 @@ export const PlayerBottomBar = ({ videoId, chapters, variants: _variants, active
     };
 
     return (
+        <>
+            {/* Sleep timer chip — bottom-right of the player canvas. */}
+            <SleepTimerChip option={sleepState.option} remainingSec={sleepState.remainingSec} />
+
         <div
             className="player-bar absolute inset-x-0 bottom-0 z-30 flex flex-col gap-2 px-4 pb-4 pt-8"
             data-active={active ? "true" : "false"}
@@ -121,6 +134,7 @@ export const PlayerBottomBar = ({ videoId, chapters, variants: _variants, active
                 {/* Right group */}
                 <div className="flex items-center gap-1">
                     <CaptionsMenu />
+                    <SleepTimer onStateChange={setSleepState} />
                     <SettingsMenu />
 
                     {/* Theatre mode */}
@@ -142,6 +156,7 @@ export const PlayerBottomBar = ({ videoId, chapters, variants: _variants, active
                 </div>
             </div>
         </div>
+        </>
     );
 };
 

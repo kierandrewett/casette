@@ -11,6 +11,10 @@ import { HoverPreview } from "./HoverPreview";
 
 export interface VideoCardVideo {
     id: string;
+    /** Short URL-friendly id; preferred over `id` for hrefs. Falls back to `id`
+     *  when absent so server callers that have not yet been wired keep working. */
+    publicId?: string | null;
+    unlistedSlug?: string | null;
     title: string;
     thumbnailPath: string | null;
     durationSec: number | null;
@@ -41,9 +45,12 @@ export const VideoCard = ({ video, progress, className }: VideoCardProps) => {
     // thumbnail wrapper without needing a separate event-wiring layer.
     const thumbRef = useRef<HTMLDivElement>(null);
 
+    const watchId = video.publicId ?? video.id;
+    const watchHref = video.unlistedSlug ? `/watch/${watchId}?slug=${video.unlistedSlug}` : `/watch/${watchId}`;
+
     return (
         <Link
-            href={`/watch/${video.id}`}
+            href={watchHref}
             className={cn("group block", className)}
             aria-label={`Watch "${video.title}"`}
         >

@@ -3,6 +3,8 @@ import PgBoss from "pg-boss";
 import { env } from "@/env";
 
 import { transcodeHandler, type TranscodePayload } from "./jobs/transcode";
+import { pruneHandler } from "./jobs/prune";
+import { transcribeHandler, type TranscribePayload } from "./jobs/transcribe";
 
 // Why globalThis: Next.js loads instrumentation.ts and route handlers into
 // separate module trees, so a module-scoped `let boss` would be initialised
@@ -42,6 +44,8 @@ const bootOnce = async (): Promise<void> => {
     // retryLimit / retryBackoff are passed on send() per-job so we leave
     // the queue defaults alone here.
     await boss.createQueue("transcode-video");
+    await boss.createQueue("transcribe-video");
+    await boss.createQueue("prune-old-videos");
 
     // pg-boss v10 fetches up to batchSize jobs at once. Our handler iterates
     // serially, so batchSize maps onto the v9 teamSize/teamConcurrency knob.
@@ -50,6 +54,22 @@ const bootOnce = async (): Promise<void> => {
         { batchSize: env.TRANSCODE_CONCURRENCY },
         transcodeHandler,
     );
+
+    await boss.work<TranscribePayload>(
+        "transcribe-video",
+        { batchSize: 1 },
+        transcribeHandler,
+    );
+
+    await boss.work<Record<string, never>>(
+        "prune-old-videos",
+        { batchSize: 1 },
+        pruneHandler,
+    );
+
+    // Schedule the prune job to run daily at 03:00 UTC.
+    // pg-boss schedule is idempotent so this is safe to call on every boot.
+    await boss.schedule("prune-old-videos", "0 3 * * *");
 
     console.log(
         `[worker] pg-boss started; registered transcode-video worker (batchSize=${env.TRANSCODE_CONCURRENCY})`,

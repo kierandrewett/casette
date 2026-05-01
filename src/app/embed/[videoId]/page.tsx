@@ -46,6 +46,14 @@ const EmbedPage = async ({ params, searchParams }: EmbedPageProps) => {
     const sp = await searchParams;
     const slug = typeof sp["slug"] === "string" ? sp["slug"] : null;
 
+    // Embed customisation query params.
+    const autoplay = sp["autoplay"] === "1";
+    const muted = sp["muted"] === "1" || autoplay; // muted=1 implied when autoplay=1
+    const loop = sp["loop"] === "1";
+    const controls = sp["controls"] === "0" ? ("hidden" as const) : ("auto" as const);
+    const startSecRaw = typeof sp["start"] === "string" ? parseInt(sp["start"], 10) : NaN;
+    const startSec = Number.isFinite(startSecRaw) && startSecRaw >= 0 ? startSecRaw : undefined;
+
     const videoRows = await db.select().from(videos).where(eq(videos.id, videoId)).limit(1);
     const video = videoRows[0];
     if (!video || video.status !== "ready") {
@@ -100,6 +108,11 @@ const EmbedPage = async ({ params, searchParams }: EmbedPageProps) => {
                     name: channel.name,
                     avatarPath: channel.avatarPath,
                 }}
+                autoplay={autoplay}
+                muted={muted}
+                loop={loop}
+                controls={controls}
+                startSec={startSec}
             />
         </div>
     );

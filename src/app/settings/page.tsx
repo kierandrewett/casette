@@ -5,9 +5,12 @@ import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import AppShell from "@/components/shell/AppShell";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { DataPanel } from "@/components/settings/DataPanel";
 import { PasskeysPanel } from "@/components/settings/PasskeysPanel";
 import { PreferencesPanel } from "@/components/settings/PreferencesPanel";
 import { SessionsPanel } from "@/components/settings/SessionsPanel";
+import { SignInAlertsToggle } from "@/components/settings/SignInAlertsToggle";
+import { ThemeToggle } from "@/components/settings/ThemeToggle";
 import { TwoFactorPanel } from "@/components/settings/TwoFactorPanel";
 import { SignOutButton } from "./SettingsClient";
 
@@ -42,20 +45,14 @@ export default async function SettingsPage() {
                     </p>
                 </section>
 
-                {/* Theme section */}
+                {/* Appearance section */}
                 <section className="space-y-4">
                     <h2 className="text-base font-semibold text-foreground/80 uppercase tracking-wider">
-                        Theme
+                        Appearance
                     </h2>
                     <div className="rounded-xl border border-border bg-card divide-y divide-border">
-                        <SettingsRow label="Colour scheme" value="Dark (system)" />
+                        <ThemeToggle />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                        cassette is dark-only by design. System preference is respected where the
-                        browser supports the{" "}
-                        <code className="font-mono text-[11px]">prefers-color-scheme</code> media query,
-                        but no light theme is available.
-                    </p>
                 </section>
 
                 {/* Preferences section */}
@@ -102,6 +99,24 @@ export default async function SettingsPage() {
                         Active Sessions
                     </h2>
                     <SessionsPanel />
+                </section>
+
+                {/* Security section */}
+                <section className="space-y-4">
+                    <h2 className="text-base font-semibold text-foreground/80 uppercase tracking-wider">
+                        Security
+                    </h2>
+                    <div className="rounded-xl border border-border bg-card divide-y divide-border">
+                        <SignInAlertsToggle />
+                    </div>
+                </section>
+
+                {/* Data section */}
+                <section className="space-y-4">
+                    <h2 className="text-base font-semibold text-foreground/80 uppercase tracking-wider">
+                        Data
+                    </h2>
+                    <DataPanel userEmail={user.email} />
                 </section>
 
                 {/* Sign out */}

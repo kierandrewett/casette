@@ -255,4 +255,59 @@ export const channelRouter = createTRPCRouter({
 
             return { id: revoked.id };
         }),
+
+    // Protected (owner): set auto-prune policy for the channel.
+    setAutoPruneDays: channelProcedure("owner")
+        .input(
+            z.object({
+                channelId: z.string().uuid(),
+                autoPruneDays: z.number().int().positive().nullable(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            await ctx.db
+                .update(channels)
+                .set({ autoPruneDays: input.autoPruneDays, updatedAt: new Date() })
+                .where(eq(channels.id, input.channelId));
+            return { ok: true };
+        }),
+
+    // Protected (owner): set the channel's own disk quota (self-service).
+    // Primarily a convenience for the studio UI; admins can also set this via
+    // admin.channels.setQuota for unrestricted access.
+    setMyQuota: channelProcedure("owner")
+        .input(
+            z.object({
+                channelId: z.string().uuid(),
+                quotaBytes: z.number().int().nonnegative().nullable(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            await ctx.db
+                .update(channels)
+                .set({ diskQuotaBytes: input.quotaBytes, updatedAt: new Date() })
+                .where(eq(channels.id, input.channelId));
+            return { ok: true };
+        }),
+
+    // Protected (owner or member): get channel usage for the quota UI.
+    getUsage: channelProcedure("owner", "manager", "uploader")
+        .input(z.object({ channelId: z.string().uuid() }))
+        .query(async ({ ctx, input }) => {
+            const { getChannelUsage } = await import("@/lib/quota");
+            const channelRows = await ctx.db
+                .select({ diskQuotaBytes: channels.diskQuotaBytes, autoPruneDays: channels.autoPruneDays })
+                .from(channels)
+                .where(eq(channels.id, input.channelId))
+                .limit(1);
+            const channel = channelRows[0];
+            if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+
+            const used = await getChannelUsage(input.channelId);
+            return {
+                used,
+                quota: channel.diskQuotaBytes ?? null,
+                autoPruneDays: channel.autoPruneDays ?? null,
+            };
+        }),
 });

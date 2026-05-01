@@ -275,6 +275,40 @@ const usersRouter = createTRPCRouter({
         }),
 });
 
+const channelsAdminRouter = createTRPCRouter({
+    setQuota: adminProcedure
+        .input(
+            z.object({
+                channelId: z.string().uuid(),
+                quotaBytes: z.number().int().nonnegative().nullable(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const channelRows = await ctx.db
+                .select({ id: channels.id, name: channels.name })
+                .from(channels)
+                .where(eq(channels.id, input.channelId))
+                .limit(1);
+            if (!channelRows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+            await ctx.db
+                .update(channels)
+                .set({ diskQuotaBytes: input.quotaBytes, updatedAt: new Date() })
+                .where(eq(channels.id, input.channelId));
+
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "channel.quotaSet",
+                targetType: "channel",
+                targetId: input.channelId,
+                details: { quotaBytes: input.quotaBytes, channelName: channelRows[0].name },
+                headers: ctx.headers,
+            });
+
+            return { ok: true };
+        }),
+});
+
 const videosRouter = createTRPCRouter({
     list: adminProcedure
         .input(
@@ -330,6 +364,52 @@ const videosRouter = createTRPCRouter({
                 items,
                 nextCursor: hasMore && last ? last.video.id : null,
             };
+        }),
+
+    transcribe: adminProcedure
+        .input(
+            z.object({
+                videoId: z.string().uuid(),
+                overwrite: z.boolean().optional(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const videoRows = await ctx.db
+                .select({ id: videos.id, status: videos.status, title: videos.title, channelId: videos.channelId })
+                .from(videos)
+                .where(eq(videos.id, input.videoId))
+                .limit(1);
+            const video = videoRows[0];
+            if (!video) throw new TRPCError({ code: "NOT_FOUND" });
+            if (video.status !== "ready") {
+                throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message: `Video is not ready (status: ${video.status}). Transcription requires a fully transcoded video.`,
+                });
+            }
+
+            const { ensureBoss } = await import("@/worker/boot");
+            const boss = await ensureBoss();
+            await boss.send(
+                "transcribe-video",
+                { videoId: input.videoId, overwrite: input.overwrite ?? false },
+                {
+                    retryLimit: 1,
+                    expireInHours: 4,
+                    singletonKey: input.videoId,
+                },
+            );
+
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "video.transcribe",
+                targetType: "video",
+                targetId: input.videoId,
+                details: { title: video.title, channelId: video.channelId, overwrite: input.overwrite ?? false },
+                headers: ctx.headers,
+            });
+
+            return { ok: true };
         }),
 
     delete: adminProcedure
@@ -443,13 +523,13 @@ const jobsRouter = createTRPCRouter({
 
 const storageRouter = createTRPCRouter({
     summary: adminProcedure.query(async ({ ctx }) => {
-        // Pull all channel handles + ids so we can map dirs to channels.
+        // Pull all channel handles + ids + quota so we can map dirs to channels.
         const allChannels = await ctx.db
-            .select({ id: channels.id, handle: channels.handle, name: channels.name })
+            .select({ id: channels.id, handle: channels.handle, name: channels.name, diskQuotaBytes: channels.diskQuotaBytes })
             .from(channels);
 
         const handleToChannel = new Map(allChannels.map((c) => [c.handle, c]));
-        const idToChannel = new Map(allChannels.map((c) => [c.id, c]));
+        const idToChannel = new Map(allChannels.map((c) => [c.id, { ...c }]));
 
         // Source bytes from DB (fast, approximate).
         const sourceDbRows = await ctx.db
@@ -535,6 +615,7 @@ const storageRouter = createTRPCRouter({
                 channelId: cId,
                 channelName: ch?.name ?? cId,
                 channelHandle: ch?.handle ?? "",
+                diskQuotaBytes: ch?.diskQuotaBytes ?? null,
                 sourceBytes: channelSourceBytes.get(cId) ?? 0,
                 hlsBytes: channelHlsBytes.get(cId) ?? 0,
                 assetBytes: channelAssetBytes.get(cId) ?? 0,
@@ -952,4 +1033,5 @@ export const adminRouter = createTRPCRouter({
     siteConfig: siteConfigRouter,
     bandwidth: bandwidthRouter,
     audit: auditRouter,
+    channels: channelsAdminRouter,
 });

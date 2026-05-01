@@ -43,6 +43,34 @@
       "when": 1777645896464,
       "tag": "0005_nosy_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777646996168,
+      "tag": "0006_dear_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777647120582,
+      "tag": "0007_add_user_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777647343786,
+      "tag": "0008_chapter_source_manual",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777647402306,
+      "tag": "0009_past_the_leader",
+      "breakpoints": true
     }
   ]
 }

@@ -89,6 +89,8 @@ const HomePage = async () => {
                             videos={subFeed.map(({ video, channel }) => ({
                                 id: video.id,
                                 title: video.title,
+                                publicId: video.publicId,
+                                unlistedSlug: video.unlistedSlug,
                                 thumbnailPath: video.thumbnailPath,
                                 durationSec: video.durationSec,
                                 viewCount: video.viewCount,
@@ -108,6 +110,8 @@ const HomePage = async () => {
                             videos={trending.map(({ video, channel }) => ({
                                 id: video.id,
                                 title: video.title,
+                                publicId: video.publicId,
+                                unlistedSlug: video.unlistedSlug,
                                 thumbnailPath: video.thumbnailPath,
                                 durationSec: video.durationSec,
                                 viewCount: video.viewCount,
@@ -126,6 +130,8 @@ const HomePage = async () => {
                         videos={recent.map(({ video, channel }) => ({
                             id: video.id,
                             title: video.title,
+                            publicId: video.publicId,
+                            unlistedSlug: video.unlistedSlug,
                             thumbnailPath: video.thumbnailPath,
                             durationSec: video.durationSec,
                             viewCount: video.viewCount,

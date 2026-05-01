@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -10,6 +10,8 @@ import { z } from "zod";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ThumbnailPicker } from "@/components/studio/ThumbnailPicker";
+import { ThumbnailUploader } from "@/components/studio/ThumbnailUploader";
+import { ChapterEditor } from "@/components/studio/ChapterEditor";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +59,8 @@ type EditVideoDialogProps = {
         title: string;
         description: string;
         tags?: string[];
+        /** Chapters for the manual editor — optional for backwards compat. */
+        chapters?: Array<{ startSec: number; title: string; source: string }>;
     };
 };
 
@@ -106,6 +110,9 @@ export const EditVideoDialog = ({ open, onOpenChange, channelId, video }: EditVi
         updateMetadata.mutate({ videoId: video.id, title: values.title, description: values.description, tags });
     };
 
+    // Sub-tab for the thumbnail section.
+    const [thumbTab, setThumbTab] = useState<"pick" | "upload">("pick");
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
@@ -117,6 +124,7 @@ export const EditVideoDialog = ({ open, onOpenChange, channelId, video }: EditVi
                     <TabsList>
                         <TabsTrigger value="metadata">Metadata</TabsTrigger>
                         <TabsTrigger value="thumbnail">Thumbnail</TabsTrigger>
+                        <TabsTrigger value="chapters">Chapters</TabsTrigger>
                     </TabsList>
 
                     {/* ---- Metadata tab ---- */}
@@ -209,12 +217,50 @@ export const EditVideoDialog = ({ open, onOpenChange, channelId, video }: EditVi
 
                     {/* ---- Thumbnail tab ---- */}
                     <TabsContent value="thumbnail" className="pt-2">
-                        <ThumbnailPicker
-                            videoId={video.id}
-                            onSaved={async () => {
-                                await utils.video.listForChannel.invalidate({ channelId });
-                            }}
-                        />
+                        {/* Sub-tabs: pick from video | upload custom */}
+                        <div className="mb-4 flex gap-1 rounded-lg border border-border bg-secondary p-1 w-fit">
+                            <button
+                                type="button"
+                                onClick={() => setThumbTab("pick")}
+                                className={cn(
+                                    "rounded-md px-3 py-1 text-sm font-medium transition-colors",
+                                    thumbTab === "pick"
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground",
+                                )}
+                            >
+                                Pick from video
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setThumbTab("upload")}
+                                className={cn(
+                                    "rounded-md px-3 py-1 text-sm font-medium transition-colors",
+                                    thumbTab === "upload"
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground",
+                                )}
+                            >
+                                Upload custom
+                            </button>
+                        </div>
+
+                        {thumbTab === "pick" ? (
+                            <ThumbnailPicker
+                                videoId={video.id}
+                                onSaved={async () => {
+                                    await utils.video.listForChannel.invalidate({ channelId });
+                                }}
+                            />
+                        ) : (
+                            <ThumbnailUploader
+                                videoId={video.id}
+                                onSaved={async () => {
+                                    await utils.video.listForChannel.invalidate({ channelId });
+                                }}
+                            />
+                        )}
+
                         <div className="mt-4 flex justify-end">
                             <button
                                 type="button"
@@ -224,6 +270,15 @@ export const EditVideoDialog = ({ open, onOpenChange, channelId, video }: EditVi
                                 Close
                             </button>
                         </div>
+                    </TabsContent>
+
+                    {/* ---- Chapters tab ---- */}
+                    <TabsContent value="chapters">
+                        <ChapterEditor
+                            videoId={video.id}
+                            channelId={channelId}
+                            initialChapters={video.chapters ?? []}
+                        />
                     </TabsContent>
                 </Tabs>
             </DialogContent>

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/admin";
 import { trpc } from "@/lib/trpc/server";
 import { BandwidthSummary } from "@/components/admin/BandwidthSummary";
+import { ChannelQuotaEditor } from "@/components/admin/ChannelQuotaEditor";
 import { StatCard } from "@/components/admin/StatCard";
 import { JanitorButton } from "@/components/admin/JanitorButton";
 
@@ -59,6 +60,46 @@ export default async function AdminStoragePage() {
                                         <td className="px-4 py-3 text-right tabular-nums">{formatBytes(ch.hlsBytes)}</td>
                                         <td className="px-4 py-3 text-right tabular-nums">{formatBytes(ch.assetBytes)}</td>
                                         <td className="px-4 py-3 text-right tabular-nums font-medium">{formatBytes(ch.totalBytes)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            )}
+
+            {/* Quotas */}
+            {summary.topChannels.length > 0 && (
+                <section className="space-y-2">
+                    <h2 className="text-lg font-semibold">Quotas</h2>
+                    <p className="text-sm text-muted-foreground">
+                        Per-channel upload quota. Click the quota value to edit inline.
+                    </p>
+                    <div className="rounded-lg border border-border overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-border bg-muted/40">
+                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Channel</th>
+                                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Source used</th>
+                                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Quota</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {summary.topChannels.map((ch) => (
+                                    <tr key={ch.channelId} className="border-b border-border last:border-0 hover:bg-muted/20">
+                                        <td className="px-4 py-3">
+                                            <span className="font-medium">{ch.channelName}</span>
+                                            {ch.channelHandle && (
+                                                <span className="ml-2 text-xs text-muted-foreground">@{ch.channelHandle}</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-right tabular-nums">{formatBytes(ch.sourceBytes)}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            <ChannelQuotaEditor
+                                                channelId={ch.channelId}
+                                                currentQuotaBytes={ch.diskQuotaBytes}
+                                            />
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

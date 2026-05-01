@@ -16,3 +16,4 @@ export * from "./webhooks";
 export * from "./site";
 export * from "./metrics";
 export * from "./audit";
+export * from "./preferences";

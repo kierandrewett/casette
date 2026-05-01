@@ -52,6 +52,9 @@ const serverSchema = z.object({
             z.boolean(),
         )
         .default(false),
+    // Optional Sentry DSN for error monitoring. When absent, error-monitoring.ts
+    // is a no-op and @sentry/nextjs does not need to be installed.
+    SENTRY_DSN: z.string().optional(),
 });
 
 const clientSchema = z.object({
@@ -80,6 +83,7 @@ const parsed = serverSchema.safeParse({
     WHISPER_API_URL: process.env.WHISPER_API_URL,
     WHISPER_API_KEY: process.env.WHISPER_API_KEY,
     WHISPER_AUTO: process.env.WHISPER_AUTO,
+    SENTRY_DSN: process.env.SENTRY_DSN,
 });
 
 if (!parsed.success) {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Check, List } from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { useSession } from "@/lib/auth-client";
@@ -118,6 +118,7 @@ const CreatePlaylistForm = ({
 
 export const AddToPlaylistButton = ({ videoId }: AddToPlaylistButtonProps) => {
     const { data: session } = useSession();
+    const router = useRouter();
     const [open, setOpen] = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [queueAdded, setQueueAdded] = useState(false);
@@ -149,16 +150,23 @@ export const AddToPlaylistButton = ({ videoId }: AddToPlaylistButtonProps) => {
     });
 
     if (!session?.user) {
-        // Unauthenticated: render a "Sign in to save" link instead.
+        // Unauthenticated: render a button (NOT a <Link>) that programmatically
+        // navigates. VideoCard already wraps the whole card in a <Link>, so a
+        // nested <a> would be invalid HTML and trip a hydration error.
         return (
-            <Link
-                href="/login"
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    router.push("/login");
+                }}
                 className="flex items-center gap-1.5 rounded-lg bg-secondary/80 px-2.5 py-1.5 text-xs font-medium text-foreground/80 hover:bg-secondary hover:text-foreground transition-colors"
-                onClick={(e) => e.stopPropagation()}
+                aria-label="Sign in to save this video"
             >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 Sign in to save
-            </Link>
+            </button>
         );
     }
 

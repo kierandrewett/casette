@@ -56,6 +56,12 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
         ],
     },
     {
+        category: "Overlays",
+        shortcuts: [
+            { keys: ["B"], description: "Toggle stats for nerds" },
+        ],
+    },
+    {
         category: "Help",
         shortcuts: [
             { keys: ["?"], description: "Show / hide keyboard shortcuts" },

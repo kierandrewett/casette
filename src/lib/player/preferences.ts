@@ -15,7 +15,13 @@ export interface PlayerPreferences {
     captionsLang: string | null;
     theatre: boolean;
     hoverPreviewsEnabled: boolean;
+    lastSleepTimer: SleepTimerOption;
+    statsOverlayEnabled: boolean;
 }
+
+export type SleepTimerOption = "off" | "5" | "15" | "30" | "60" | "end";
+
+const VALID_SLEEP_OPTIONS: SleepTimerOption[] = ["off", "5", "15", "30", "60", "end"];
 
 const DEFAULTS: PlayerPreferences = {
     volume: 1,
@@ -23,6 +29,8 @@ const DEFAULTS: PlayerPreferences = {
     captionsLang: null,
     theatre: false,
     hoverPreviewsEnabled: true,
+    lastSleepTimer: "off",
+    statsOverlayEnabled: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -55,6 +63,8 @@ export const readPreferences = (): PlayerPreferences => {
     const captionsRaw = safeGet("captionsLang");
     const theatreRaw = safeGet("theatre");
     const hoverPreviewsRaw = safeGet("hoverPreviewsEnabled");
+    const sleepTimerRaw = safeGet("lastSleepTimer");
+    const statsRaw = safeGet("statsOverlayEnabled");
 
     const volume = volumeRaw !== null ? Math.max(0, Math.min(1, Number(volumeRaw))) : DEFAULTS.volume;
     const playbackRate = rateRaw !== null
@@ -64,6 +74,11 @@ export const readPreferences = (): PlayerPreferences => {
     const theatre = theatreRaw === "true";
     // Default true unless explicitly stored as "false".
     const hoverPreviewsEnabled = hoverPreviewsRaw === "false" ? false : DEFAULTS.hoverPreviewsEnabled;
+    const lastSleepTimer: SleepTimerOption =
+        sleepTimerRaw !== null && VALID_SLEEP_OPTIONS.includes(sleepTimerRaw as SleepTimerOption)
+            ? (sleepTimerRaw as SleepTimerOption)
+            : DEFAULTS.lastSleepTimer;
+    const statsOverlayEnabled = statsRaw === "true";
 
     return {
         volume: isNaN(volume) ? DEFAULTS.volume : volume,
@@ -71,6 +86,8 @@ export const readPreferences = (): PlayerPreferences => {
         captionsLang,
         theatre,
         hoverPreviewsEnabled,
+        lastSleepTimer,
+        statsOverlayEnabled,
     };
 };
 
@@ -108,4 +125,12 @@ export const writeTheatre = (value: boolean): void => {
 
 export const writeHoverPreviewsEnabled = (value: boolean): void => {
     safeSet("hoverPreviewsEnabled", String(value));
+};
+
+export const writeLastSleepTimer = (option: SleepTimerOption): void => {
+    safeSet("lastSleepTimer", option);
+};
+
+export const writeStatsOverlayEnabled = (value: boolean): void => {
+    safeSet("statsOverlayEnabled", String(value));
 };

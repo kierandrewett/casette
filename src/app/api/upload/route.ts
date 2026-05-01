@@ -11,6 +11,7 @@ import { env } from "@/env";
 import { auth, verifyApiKey } from "@/lib/auth";
 import { ensureDir, paths, sourcePathForChannel, sourcePathForVideo } from "@/lib/paths";
 import { limit } from "@/lib/ratelimit";
+import { checkQuota } from "@/lib/quota";
 import { unlistedSlug } from "@/lib/slug";
 import { parseMultipart } from "@/lib/upload/multipart";
 import { db } from "@/server/db/client";
@@ -155,6 +156,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         if (err instanceof Error && err.message.includes("exceeds maximum size")) {
             return new Response(JSON.stringify({ error: "upload exceeds maximum size" }), { status: 413 });
         }
+        void import("@/lib/error-monitoring").then(({ captureException }) => captureException(err));
         return new Response(JSON.stringify({ error: (err as Error).message }), { status: 400 });
     }
 
@@ -209,6 +211,41 @@ export async function POST(req: NextRequest): Promise<Response> {
         }
     }
 
+    // ---- 4b. Quota pre-check (Content-Length fast path) ----
+
+    const contentLengthHeader = req.headers.get("content-length");
+    if (contentLengthHeader) {
+        const contentLength = parseInt(contentLengthHeader, 10);
+        if (!isNaN(contentLength) && contentLength > 0) {
+            const quotaResult = await checkQuota({ channelId, addingBytes: contentLength });
+            if (!quotaResult.ok && quotaResult.quota !== null) {
+                await cleanupTmp(tmpPath);
+                const usedMb = (quotaResult.used / 1_048_576).toFixed(1);
+                const quotaMb = (quotaResult.quota / 1_048_576).toFixed(1);
+                return new Response(
+                    JSON.stringify({ error: `Channel quota exceeded — ${usedMb} MB of ${quotaMb} MB used.` }),
+                    { status: 413 },
+                );
+            }
+        }
+    }
+
+    // ---- 4c. Quota mid-stream check (no Content-Length / file now on disk) ----
+
+    if (!contentLengthHeader) {
+        const actualBytes = parsed.file.bytesWritten;
+        const quotaResult = await checkQuota({ channelId, addingBytes: actualBytes });
+        if (!quotaResult.ok && quotaResult.quota !== null) {
+            await cleanupTmp(tmpPath);
+            const usedMb = (quotaResult.used / 1_048_576).toFixed(1);
+            const quotaMb = (quotaResult.quota / 1_048_576).toFixed(1);
+            return new Response(
+                JSON.stringify({ error: `Channel quota exceeded — ${usedMb} MB of ${quotaMb} MB used.` }),
+                { status: 413 },
+            );
+        }
+    }
+
     // ---- 5. Determine file extension and target path ----
 
     const rawFilename = parsed.file.filename || "upload.bin";
@@ -218,11 +255,14 @@ export async function POST(req: NextRequest): Promise<Response> {
     // ---- 6. Insert video row ----
 
     const slugValue = privacy === "unlisted" ? unlistedSlug() : null;
+    const { videoPublicId } = await import("@/lib/slug");
+    const publicId = videoPublicId();
 
     const [videoRow] = await db
         .insert(videos)
         .values({
             channelId,
+            publicId,
             uploaderId: uploaderId ?? undefined,
             title: clamp(title, 200),
             description,

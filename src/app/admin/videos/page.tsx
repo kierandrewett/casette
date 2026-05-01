@@ -126,6 +126,7 @@ export default async function AdminVideosPage({ searchParams }: { searchParams: 
                                     <VideoActionsMenu
                                         videoId={video.id}
                                         videoTitle={video.title}
+                                        videoStatus={video.status}
                                         channelHandle={channelHandle}
                                     />
                                 </td>
