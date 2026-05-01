@@ -90,7 +90,7 @@ export const VideoCard = ({ video, progress, className }: VideoCardProps) => {
             </div>
 
             {/* Metadata */}
-            <div className="mt-2 space-y-0.5 transition-shadow duration-200 group-hover:shadow-md">
+            <div className="mt-2 space-y-0.5">
                 {/* Two-line clamp title */}
                 <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground">{video.title}</h3>
                 {/* Channel name only — the redundant "@handle" has been
