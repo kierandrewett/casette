@@ -4,15 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
-    Home02Icon,
+    Home09Icon,
     Tv01Icon,
-    Bookshelf02Icon,
+    LibraryIcon,
     Clock01Icon,
-    Playlist01Icon,
+    Playlist02Icon,
     PlusSignIcon,
     Settings02Icon,
     Crown02Icon,
-    UserCircleIcon,
 } from "hugeicons-react";
 
 import { cn } from "@/lib/utils";
@@ -36,24 +35,24 @@ interface NavItem {
     matchPrefix?: boolean;
 }
 
-// `labelKey` indexes into the `nav.*` namespace of the active locale file.
-// We build the actual label string at render time via useTranslations so the
-// nav re-localises without remounting.
 type NavItemDef = Omit<NavItem, "label"> & { labelKey: string };
 
 const PRIMARY_ITEMS: NavItemDef[] = [
-    { href: "/", labelKey: "home", icon: Home02Icon },
+    { href: "/", labelKey: "home", icon: Home09Icon },
     { href: "/subscriptions", labelKey: "subscriptions", icon: Tv01Icon, matchPrefix: true },
 ];
 
 const LIBRARY_ITEMS: NavItemDef[] = [
-    { href: "/library", labelKey: "library", icon: Bookshelf02Icon, matchPrefix: true },
+    { href: "/library", labelKey: "library", icon: LibraryIcon, matchPrefix: true },
     { href: "/history", labelKey: "history", icon: Clock01Icon, matchPrefix: true },
-    { href: "/playlists", labelKey: "playlists", icon: Playlist01Icon, matchPrefix: true },
+    { href: "/playlists", labelKey: "playlists", icon: Playlist02Icon, matchPrefix: true },
 ];
 
 interface LeftRailProps {
     channels: UserChannel[];
+    /** Channels the viewer subscribes to. Rendered as a "Subscriptions" list,
+     *  same shape as the owned-channels list. */
+    subscriptions?: UserChannel[];
     /** Whether the signed-in viewer holds an admin grant — controls the admin link. */
     isAdmin?: boolean;
     /** Whether the signed-in viewer is signed in at all. Drives Library/Studio visibility. */
@@ -76,11 +75,13 @@ interface RailLinkProps {
     badge?: number;
     /** Optional avatar replaces the icon column (used for channel rows). */
     avatar?: React.ReactNode;
+    /** Trailing content rendered to the right of the label. */
+    trailing?: React.ReactNode;
 }
 
 // YouTube-style rail row. ~40px tall, rounded-lg, gap-3 between icon and
 // label. Active state is a filled background only — no left accent stripe.
-const RailLink = ({ href, label, Icon, active, badge, avatar }: RailLinkProps) => {
+const RailLink = ({ href, label, Icon, active, badge, avatar, trailing }: RailLinkProps) => {
     return (
         <Link
             href={href}
@@ -96,6 +97,7 @@ const RailLink = ({ href, label, Icon, active, badge, avatar }: RailLinkProps) =
                 {avatar ? avatar : <Icon size={22} strokeWidth={active ? 2 : 1.6} />}
             </span>
             <span className="flex-1 truncate">{label}</span>
+            {trailing}
             {badge !== undefined && badge > 0 && (
                 <span className="rounded-full bg-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-foreground">
                     {badge > 99 ? "99+" : badge}
@@ -111,17 +113,35 @@ const SectionHeader = ({ children }: { children: React.ReactNode }) => (
 
 const Divider = () => <div className="mx-3 my-2 h-px bg-border/50" aria-hidden="true" />;
 
-export const LeftRail = ({ channels, isAdmin = false, isAuthenticated = false }: LeftRailProps) => {
+// Channel avatar inside a rail row. Used for both Your channels and
+// Subscriptions sections.
+const ChannelAvatar = ({ channel }: { channel: UserChannel }) => {
+    const initials = channel.name.slice(0, 2).toUpperCase();
+    return (
+        <Avatar className="h-6 w-6">
+            {channel.avatarPath && (
+                <AvatarImage src={`/api/channel/${channel.id}/asset/avatar`} alt={channel.name} />
+            )}
+            <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+        </Avatar>
+    );
+};
+
+export const LeftRail = ({
+    channels,
+    subscriptions = [],
+    isAdmin = false,
+    isAuthenticated = false,
+}: LeftRailProps) => {
     const pathname = usePathname();
     const t = useTranslations("nav");
-    const ownsChannel = channels.length > 0;
 
     return (
         <aside
             className={cn(
-                "fixed inset-y-0 left-0 z-40 flex flex-col bg-background",
-                // Header offset — 56px matches AppHeader height.
-                "pt-14",
+                // top-14 puts the rail flush below the AppHeader; no padding
+                // hack on the inner content. left-0 + bottom-0 anchor the rest.
+                "fixed bottom-0 left-0 top-14 z-40 flex flex-col bg-background",
                 "w-[var(--rail-width)]",
             )}
             aria-label="Primary navigation"
@@ -160,39 +180,9 @@ export const LeftRail = ({ channels, isAdmin = false, isAuthenticated = false }:
                         </>
                     )}
 
-                    {/* Studio / admin shortcuts — only shown when relevant so signed-out
-                        viewers and viewers without a channel don't see dead links. */}
-                    {(ownsChannel || isAdmin) && (
-                        <>
-                            <Divider />
-                            <SectionHeader>{t("manage")}</SectionHeader>
-                            <ul className="space-y-0.5">
-                                {ownsChannel && (
-                                    <li>
-                                        <RailLink
-                                            href="/studio"
-                                            label={t("studio")}
-                                            Icon={Settings02Icon}
-                                            active={pathname === "/studio" || pathname.startsWith("/studio/")}
-                                        />
-                                    </li>
-                                )}
-                                {isAdmin && (
-                                    <li>
-                                        <RailLink
-                                            href="/admin"
-                                            label={t("admin")}
-                                            Icon={Crown02Icon}
-                                            active={pathname === "/admin" || pathname.startsWith("/admin/")}
-                                        />
-                                    </li>
-                                )}
-                            </ul>
-                        </>
-                    )}
-
-                    {/* User channels list — appears only when the viewer owns one or more
-                        channels. Each row links to /channel/<handle>. */}
+                    {/* Owned channels — each row links to /channel/<handle>; a
+                        small Studio shortcut sits to the right so the user
+                        does not need a top-level Studio entry to manage one. */}
                     {channels.length > 0 && (
                         <>
                             <Divider />
@@ -200,27 +190,26 @@ export const LeftRail = ({ channels, isAdmin = false, isAuthenticated = false }:
                             <ul className="space-y-0.5">
                                 {channels.map((channel) => {
                                     const href = `/channel/${channel.handle}`;
+                                    const studioHref = `/studio/channel/${channel.handle}`;
                                     const active = pathname === href || pathname.startsWith(`${href}/`);
-                                    const initials = channel.name.slice(0, 2).toUpperCase();
                                     return (
                                         <li key={channel.id}>
                                             <RailLink
                                                 href={href}
                                                 label={channel.name}
-                                                Icon={UserCircleIcon}
+                                                Icon={Settings02Icon}
                                                 active={active}
-                                                avatar={
-                                                    <Avatar className="h-6 w-6">
-                                                        {channel.avatarPath && (
-                                                            <AvatarImage
-                                                                src={`/api/channel/${channel.id}/asset/avatar`}
-                                                                alt={channel.name}
-                                                            />
-                                                        )}
-                                                        <AvatarFallback className="text-[10px]">
-                                                            {initials}
-                                                        </AvatarFallback>
-                                                    </Avatar>
+                                                avatar={<ChannelAvatar channel={channel} />}
+                                                trailing={
+                                                    <Link
+                                                        href={studioHref}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        title="Open in Studio"
+                                                        aria-label={`Open ${channel.name} in Studio`}
+                                                        className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                                                    >
+                                                        <Settings02Icon size={14} strokeWidth={1.7} />
+                                                    </Link>
                                                 }
                                             />
                                         </li>
@@ -230,9 +219,53 @@ export const LeftRail = ({ channels, isAdmin = false, isAuthenticated = false }:
                         </>
                     )}
 
-                    {/* + Create channel — always shown to signed-in viewers under "Your
-                        channels" so they can add another, or as the first/only channel
-                        action when none exist yet. */}
+                    {/* Subscriptions — channels the viewer follows, listed
+                        like Your channels for direct access. */}
+                    {subscriptions.length > 0 && (
+                        <>
+                            <Divider />
+                            <SectionHeader>{t("subscriptions")}</SectionHeader>
+                            <ul className="space-y-0.5">
+                                {subscriptions.map((channel) => {
+                                    const href = `/channel/${channel.handle}`;
+                                    const active = pathname === href || pathname.startsWith(`${href}/`);
+                                    return (
+                                        <li key={channel.id}>
+                                            <RailLink
+                                                href={href}
+                                                label={channel.name}
+                                                Icon={Tv01Icon}
+                                                active={active}
+                                                avatar={<ChannelAvatar channel={channel} />}
+                                            />
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </>
+                    )}
+
+                    {/* Admin shortcut — only visible when the viewer holds an
+                        admin grant. Studio no longer has a top-level entry
+                        because the per-channel chip above covers it. */}
+                    {isAdmin && (
+                        <>
+                            <Divider />
+                            <ul className="space-y-0.5">
+                                <li>
+                                    <RailLink
+                                        href="/admin"
+                                        label={t("admin")}
+                                        Icon={Crown02Icon}
+                                        active={pathname === "/admin" || pathname.startsWith("/admin/")}
+                                    />
+                                </li>
+                            </ul>
+                        </>
+                    )}
+
+                    {/* + Create channel — always shown to signed-in viewers
+                        under the channel/subscription sections. */}
                     {isAuthenticated && (
                         <ul className="mt-1 space-y-0.5">
                             <li>
