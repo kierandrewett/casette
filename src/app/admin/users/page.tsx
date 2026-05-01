@@ -65,10 +65,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                                         href={`/admin/users/${u.id}`}
                                         className="flex items-center gap-2.5 font-medium hover:underline"
                                     >
-                                        <UserAvatar
-                                            user={{ name: u.name, email: u.email, image: u.image }}
-                                            size={24}
-                                        />
+                                        <UserAvatar user={{ name: u.name, email: u.email, image: u.image }} size={24} />
                                         <span>{u.name}</span>
                                     </Link>
                                 </td>

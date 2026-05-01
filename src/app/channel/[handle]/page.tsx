@@ -56,9 +56,7 @@ const ChannelPage = async ({ params }: ChannelPageProps) => {
     // Hoist the pinned trailer (if set) to the top of the list and render a
     // hero card above the grid. We still keep it in the grid so the layout
     // doesn't go from "12 videos" to "11 + a hero".
-    const pinned = channel.pinnedVideoId
-        ? (channelVideos.find((v) => v.id === channel.pinnedVideoId) ?? null)
-        : null;
+    const pinned = channel.pinnedVideoId ? (channelVideos.find((v) => v.id === channel.pinnedVideoId) ?? null) : null;
 
     const videoList = channelVideos.map((v) => ({
         ...v,

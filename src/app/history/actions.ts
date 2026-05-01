@@ -21,8 +21,6 @@ export async function removeHistoryItem(historyId: string): Promise<{ ok: boolea
     const session = await getSession();
     if (!session?.user) return { ok: false, error: "Not authenticated." };
 
-    await db
-        .delete(watchHistory)
-        .where(and(eq(watchHistory.userId, session.user.id), eq(watchHistory.id, historyId)));
+    await db.delete(watchHistory).where(and(eq(watchHistory.userId, session.user.id), eq(watchHistory.id, historyId)));
     return { ok: true };
 }

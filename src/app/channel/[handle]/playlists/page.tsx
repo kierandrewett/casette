@@ -30,13 +30,7 @@ const ChannelPlaylistsTabPage = async ({ params }: PlaylistsTabPageProps) => {
             privacy: playlists.privacy,
         })
         .from(playlists)
-        .where(
-            and(
-                eq(playlists.ownerId, channel.ownerId),
-                eq(playlists.kind, "user"),
-                eq(playlists.privacy, "public"),
-            ),
-        )
+        .where(and(eq(playlists.ownerId, channel.ownerId), eq(playlists.kind, "user"), eq(playlists.privacy, "public")))
         .orderBy(desc(playlists.updatedAt))
         .catch(() => []);
 
