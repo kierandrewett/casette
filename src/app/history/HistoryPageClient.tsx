@@ -84,7 +84,7 @@ const HistoryRow = ({ item, onRemove }: HistoryRowProps) => {
         <li className="group relative flex gap-4 rounded-xl p-2 transition-colors hover:bg-secondary/40">
             <Link
                 href={`/watch/${item.video.id}`}
-                className="relative aspect-video w-56 flex-shrink-0 overflow-hidden rounded-lg bg-secondary"
+                className="relative aspect-video w-56 flex-shrink-0 overflow-hidden rounded-xl bg-secondary"
             >
                 {thumb ? (
                     <Image src={thumb} alt="" fill className="object-cover" sizes="224px" />

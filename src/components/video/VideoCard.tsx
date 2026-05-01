@@ -39,9 +39,11 @@ export const VideoCard = ({ video, progress, className }: VideoCardProps) => {
     const hasDuration = video.durationSec != null && video.durationSec > 0;
     const hasProgress = typeof progress === "number" && progress > 0 && progress < 1;
 
-    // Ref passed to HoverPreview so it can listen for pointer events on the
-    // thumbnail wrapper without needing a separate event-wiring layer.
-    const thumbRef = useRef<HTMLDivElement>(null);
+    // Ref passed to HoverPreview so it can listen for pointer events. We
+    // point it at the OUTER card link (not just the thumbnail) so hovering
+    // anywhere on the card — title, channel, meta — also kicks off the
+    // preview. The preview itself still renders inside the thumbnail box.
+    const cardRef = useRef<HTMLAnchorElement>(null);
 
     const watchId = video.publicId ?? video.id;
     const watchHref = video.unlistedSlug ? `/watch/${watchId}?slug=${video.unlistedSlug}` : `/watch/${watchId}`;
@@ -49,6 +51,7 @@ export const VideoCard = ({ video, progress, className }: VideoCardProps) => {
     return (
         <Link
             href={watchHref}
+            ref={cardRef}
             className={cn(
                 // Card itself is layout-only — no padding, no hover bg.
                 // The hover treatment lives in an absolute pseudo-card
@@ -70,7 +73,7 @@ export const VideoCard = ({ video, progress, className }: VideoCardProps) => {
                 className="pointer-events-none absolute -inset-2 -z-10 origin-center scale-90 rounded-xl bg-secondary/50 opacity-0 transition-[transform,opacity] duration-200 ease-out group-hover:scale-100 group-hover:opacity-100"
             />
             {/* Thumbnail */}
-            <div ref={thumbRef} className="relative aspect-video overflow-hidden rounded-xl bg-secondary">
+            <div className="relative aspect-video overflow-hidden rounded-xl bg-secondary">
                 {thumbnailSrc ? (
                     <Image
                         src={thumbnailSrc}
@@ -89,7 +92,7 @@ export const VideoCard = ({ video, progress, className }: VideoCardProps) => {
 
                 {/* Hover preview — sits above the static thumbnail but below the duration chip (z-10 vs z-20) */}
                 {thumbnailSrc && (
-                    <HoverPreview videoId={video.id} durationSec={video.durationSec} triggerRef={thumbRef} />
+                    <HoverPreview videoId={video.id} durationSec={video.durationSec} triggerRef={cardRef} />
                 )}
 
                 {/* Duration chip — z-20 keeps it above the preview overlay */}
