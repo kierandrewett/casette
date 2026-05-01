@@ -170,14 +170,17 @@ export const CommentTree = ({ videoId, isChannelManager = false }: CommentTreePr
     }, [visibleLive, fetchedComments, videoId]);
 
     // If the URL hash is #comments and there is a pinned comment, scroll the
-    // section into view smoothly once the first page of comments loads.
+    // section into view once the first page of comments loads. Honour
+    // prefers-reduced-motion: smooth animation is the default, instant for
+    // users who have asked for less motion.
     useEffect(() => {
         if (isLoading || comments.length === 0) return;
         const hasPinned = comments.some((c) => c.isPinned);
         if (!hasPinned) return;
         if (typeof window === "undefined") return;
         if (window.location.hash !== "#comments") return;
-        sectionRef.current?.scrollIntoView({ behavior: "smooth" });
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        sectionRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
     }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (

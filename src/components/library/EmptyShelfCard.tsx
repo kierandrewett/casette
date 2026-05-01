@@ -29,7 +29,10 @@ export const EmptyShelfCard = ({
     return (
         <div
             className={cn(
-                "flex flex-shrink-0 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-card/40 px-6 text-center",
+                // Border is a touch stronger in light mode (border/90) so the
+                // dashed outline reads against the near-white background; the
+                // dark theme uses a softer border to avoid harsh contrast.
+                "flex flex-shrink-0 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-card/40 px-6 text-center dark:border-border/60",
                 "transition-colors hover:bg-card/60",
                 dimensions,
                 className,
