@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 export type UploadStage =
     | { kind: "uploading"; bytesPerSec: number; percent: number }
     | { kind: "transcoding"; step: string; percent: number }
-    | { kind: "done" }
+    | { kind: "done"; watchUrl?: string }
     | { kind: "failed"; message: string };
 
 type UploadProgressProps = {
@@ -34,7 +34,15 @@ export const UploadProgress = ({ stage }: UploadProgressProps) => {
     if (stage.kind === "done") {
         return (
             <div className="rounded-xl border border-border bg-card p-5 text-center">
-                <p className="text-sm font-medium text-green-400">Upload complete — redirecting…</p>
+                <p className="text-sm font-medium text-green-400">Ready — redirecting…</p>
+                {stage.watchUrl && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        Watch at{" "}
+                        <a href={stage.watchUrl} className="text-primary hover:underline">
+                            {stage.watchUrl}
+                        </a>
+                    </p>
+                )}
             </div>
         );
     }

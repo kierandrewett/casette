@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -39,10 +39,19 @@ const formatFileSize = (bytes: number): string => {
 const stripExtension = (filename: string): string => filename.replace(/\.[^.]+$/, "");
 
 // ---------------------------------------------------------------------------
-// Poll uploadStatus until terminal state or error
+// Transcode progress: prefer SSE, fall back to polling on older browsers
+// (or when EventSource fails to connect three times in a row).
 // ---------------------------------------------------------------------------
 
 const POLL_INTERVAL_MS = 2_000;
+const SSE_RETRY_LIMIT = 3;
+
+type TranscodeProgressEvent = {
+    state: string;
+    progress: number;
+    step: string | null;
+    message: string | null;
+};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -74,6 +83,17 @@ export const StudioUploadForm = ({ channel }: StudioUploadFormProps) => {
     // Track XHR start time + loaded bytes for speed calculation
     const uploadStartRef = useRef<{ time: number; loaded: number } | null>(null);
 
+    // Active SSE connection (if any) so we can tear it down on cancel/unmount.
+    const eventSourceRef = useRef<EventSource | null>(null);
+
+    // Cleanup on unmount.
+    useEffect(() => {
+        return () => {
+            eventSourceRef.current?.close();
+            eventSourceRef.current = null;
+        };
+    }, []);
+
     const handleFileSelect = useCallback((file: File) => {
         setSelectedFile(file);
         setTitle(stripExtension(file.name));
@@ -103,6 +123,9 @@ export const StudioUploadForm = ({ channel }: StudioUploadFormProps) => {
         if (file) handleFileSelect(file);
     };
 
+    // Polling fallback for older browsers without EventSource (or repeated SSE
+    // failure). Same shape as the original implementation; kept around so
+    // operators on locked-down networks still see live progress.
     const pollTranscode = useCallback(
         (videoId: string) => {
             let attempts = 0;
@@ -119,7 +142,6 @@ export const StudioUploadForm = ({ channel }: StudioUploadFormProps) => {
                     const status = await utils.video.uploadStatus.fetch({ videoId });
 
                     if (!status) {
-                        // Row not found yet — keep polling
                         setTimeout(() => void poll(), POLL_INTERVAL_MS);
                         return;
                     }
@@ -128,7 +150,7 @@ export const StudioUploadForm = ({ channel }: StudioUploadFormProps) => {
                     const step = status.step ?? "processing";
 
                     if (status.state === "completed") {
-                        setStage({ kind: "done" });
+                        setStage({ kind: "done", watchUrl: `/watch/${videoId}` });
                         setTimeout(() => router.push(`/watch/${videoId}`), 1_500);
                         return;
                     }
@@ -138,11 +160,9 @@ export const StudioUploadForm = ({ channel }: StudioUploadFormProps) => {
                         return;
                     }
 
-                    // Still in progress
                     setStage({ kind: "transcoding", step, percent });
                     setTimeout(() => void poll(), POLL_INTERVAL_MS);
                 } catch {
-                    // Network hiccup — keep polling
                     setTimeout(() => void poll(), POLL_INTERVAL_MS);
                 }
             };
@@ -150,6 +170,66 @@ export const StudioUploadForm = ({ channel }: StudioUploadFormProps) => {
             void poll();
         },
         [utils, router],
+    );
+
+    // Primary path: stream transcode progress over an EventSource. The server
+    // closes the stream on completed/failed, but we also pre-emptively close
+    // the EventSource ourselves so React's strict-mode double-mount doesn't
+    // leave a dangling connection.
+    const streamTranscode = useCallback(
+        (videoId: string) => {
+            if (typeof window === "undefined" || typeof window.EventSource === "undefined") {
+                pollTranscode(videoId);
+                return;
+            }
+
+            let errorCount = 0;
+            const es = new EventSource(`/api/sse/transcode/${videoId}`);
+            eventSourceRef.current = es;
+
+            es.addEventListener("progress", (ev) => {
+                let payload: TranscodeProgressEvent | null = null;
+                try {
+                    payload = JSON.parse((ev as MessageEvent<string>).data) as TranscodeProgressEvent;
+                } catch {
+                    return;
+                }
+                if (!payload) return;
+
+                if (payload.state === "completed") {
+                    setStage({ kind: "done", watchUrl: `/watch/${videoId}` });
+                    es.close();
+                    eventSourceRef.current = null;
+                    setTimeout(() => router.push(`/watch/${videoId}`), 1_500);
+                    return;
+                }
+                if (payload.state === "failed") {
+                    setStage({ kind: "failed", message: payload.message ?? "Transcoding failed." });
+                    es.close();
+                    eventSourceRef.current = null;
+                    return;
+                }
+
+                setStage({
+                    kind: "transcoding",
+                    step: payload.step ?? "processing",
+                    percent: payload.progress ?? 0,
+                });
+            });
+
+            es.addEventListener("error", () => {
+                errorCount += 1;
+                // EventSource auto-reconnects on its own, but if we churn past
+                // the retry limit (e.g. SSE unsupported by the proxy) bail
+                // out to the polling fallback so the user still sees progress.
+                if (errorCount >= SSE_RETRY_LIMIT) {
+                    es.close();
+                    eventSourceRef.current = null;
+                    pollTranscode(videoId);
+                }
+            });
+        },
+        [pollTranscode, router],
     );
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -238,9 +318,11 @@ export const StudioUploadForm = ({ channel }: StudioUploadFormProps) => {
                     return;
                 }
 
-                // Transition to transcode polling stage
+                // Transition to transcode-progress stage. SSE-first;
+                // streamTranscode falls back to polling internally when
+                // EventSource is unavailable.
                 setStage({ kind: "transcoding", step: "queued", percent: 0 });
-                pollTranscode(videoId);
+                streamTranscode(videoId);
             } else {
                 setIsUploading(false);
                 setStage(null);
@@ -277,6 +359,8 @@ export const StudioUploadForm = ({ channel }: StudioUploadFormProps) => {
         if (xhrRef.current) {
             xhrRef.current.abort();
         }
+        eventSourceRef.current?.close();
+        eventSourceRef.current = null;
         setStage(null);
         setIsUploading(false);
     };
