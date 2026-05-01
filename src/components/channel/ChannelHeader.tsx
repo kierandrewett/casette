@@ -74,7 +74,9 @@ export const ChannelHeader = ({
     const avatarSrc = avatarPath ? `/api/channel/${id}/asset/avatar` : null;
     const bannerSrc = bannerPath ? `/api/channel/${id}/asset/banner` : null;
     const avatarInitials = getInitials(name);
-    const avatarPalette = getAvatarColor(name);
+    // Gradient keyed on handle (immutable) so renaming the channel doesn't
+    // shuffle the colour every visitor associates with this channel.
+    const avatarPalette = getAvatarColor(handle);
 
     const updateChannel = api.channel.update.useMutation({
         onSuccess: () => {
@@ -167,7 +169,7 @@ export const ChannelHeader = ({
                         {avatarSrc ? (
                             <Image src={avatarSrc} alt={name} fill className="object-cover" sizes="160px" />
                         ) : (
-                            <div className="flex h-full w-full items-center justify-center text-4xl font-semibold tracking-tight md:text-5xl">
+                            <div className="flex h-full w-full items-center justify-center text-4xl font-bold tracking-wider md:text-5xl">
                                 {avatarInitials}
                             </div>
                         )}

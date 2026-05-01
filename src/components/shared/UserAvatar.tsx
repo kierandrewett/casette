@@ -40,7 +40,10 @@ export const UserAvatar = ({ user, size = 32, className }: UserAvatarProps) => {
         (user.gravatarHash ? gravatarUrlFromHash(user.gravatarHash, px) : null) ??
         (user.email ? gravatarUrl(user.email, px) : null);
     const initials = getInitials(user.name);
-    const palette = getAvatarColor(user.name);
+    // Hash the stable identifier (gravatarHash > email > name) so the
+    // gradient is tied to *who* the user is, not their display name —
+    // changing your name shouldn't change your colour.
+    const palette = getAvatarColor(user.gravatarHash ?? user.email ?? user.name ?? "");
     const [failed, setFailed] = useState(false);
 
     return (
@@ -58,7 +61,7 @@ export const UserAvatar = ({ user, size = 32, className }: UserAvatarProps) => {
             }}
             aria-hidden="true"
         >
-            <span className="font-semibold tracking-tight">{initials}</span>
+            <span className="font-bold tracking-wider">{initials}</span>
             {src && !failed && (
                 <img
                     src={src}

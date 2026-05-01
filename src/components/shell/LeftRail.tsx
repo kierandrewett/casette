@@ -115,18 +115,18 @@ const SectionHeader = ({ children }: { children: React.ReactNode }) => (
 const Divider = () => <div className="mx-3 my-2 h-px bg-border/50" aria-hidden="true" />;
 
 // Channel avatar inside a rail row. Used for both Your channels and
-// Subscriptions sections. Initials + gradient come from the centralised
-// helper so the same channel always renders the same letters and colour
-// across the app.
+// Subscriptions sections. Initials come from the display name; the
+// gradient is keyed on the channel handle so it stays stable even if the
+// channel renames.
 const ChannelAvatar = ({ channel }: { channel: UserChannel }) => {
     const initials = getInitials(channel.name);
-    const palette = getAvatarColor(channel.name);
+    const palette = getAvatarColor(channel.handle);
     return (
         <Avatar className="h-6 w-6" style={{ background: palette.background, color: palette.foreground }}>
             {channel.avatarPath && (
                 <AvatarImage src={`/api/channel/${channel.id}/asset/avatar`} alt={channel.name} />
             )}
-            <span className="text-[10px] font-semibold tracking-tight">{initials}</span>
+            <span className="text-[10px] font-bold tracking-wider">{initials}</span>
         </Avatar>
     );
 };
