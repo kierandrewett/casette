@@ -25,17 +25,92 @@ const parseOutTimeMs = (line: string): number | null => {
 // Encoder detection
 // ------------------------------------------------------------------
 
-let nvencAvailable: boolean | null = null;
+let cachedEncoders: Set<string> | null = null;
 
-export const isNvencAvailable = async (): Promise<boolean> => {
-    if (nvencAvailable !== null) return nvencAvailable;
+const loadEncoders = async (): Promise<Set<string>> => {
+    if (cachedEncoders !== null) return cachedEncoders;
     try {
         const { stdout } = await execFileAsync("ffmpeg", ["-hide_banner", "-encoders"]);
-        nvencAvailable = stdout.includes("h264_nvenc");
+        const set = new Set<string>();
+        for (const line of stdout.split("\n")) {
+            // Encoder lines start with " V....D " or similar; the second
+            // whitespace-separated token is the encoder name.
+            const match = /^\s*[VAS][.\w]*\s+(\S+)/.exec(line);
+            if (match && match[1]) set.add(match[1]);
+        }
+        cachedEncoders = set;
     } catch {
-        nvencAvailable = false;
+        cachedEncoders = new Set();
     }
-    return nvencAvailable;
+    return cachedEncoders;
+};
+
+export const isNvencAvailable = async (): Promise<boolean> => {
+    const encoders = await loadEncoders();
+    return encoders.has("h264_nvenc");
+};
+
+export type H264Encoder = "h264_nvenc" | "libx264" | "libopenh264";
+
+// Resolve the preferred H.264 encoder available on the running ffmpeg.
+// Order: NVENC (if requested by env) > libx264 > libopenh264. We fall back
+// to libopenh264 specifically because Fedora's ffmpeg-free build excludes
+// libx264 for licensing reasons; the bundled debian image used by the
+// production runner has libx264 available, but operators running against
+// the host ffmpeg need a sensible fallback so they can dogfood locally.
+export const resolveH264Encoder = async (preferNvenc = false): Promise<H264Encoder> => {
+    const encoders = await loadEncoders();
+    if (preferNvenc && encoders.has("h264_nvenc")) return "h264_nvenc";
+    if (encoders.has("libx264")) return "libx264";
+    if (encoders.has("libopenh264")) return "libopenh264";
+    throw new FfmpegError(
+        "no usable H.264 encoder found (looked for h264_nvenc, libx264, libopenh264)",
+        "",
+    );
+};
+
+// Per-encoder argument profiles. Bitrate / preset / quality knobs differ
+// enough that callers should branch on the resolved encoder.
+export const encoderArgs = (encoder: H264Encoder, bitrateKbps: number): string[] => {
+    switch (encoder) {
+        case "libx264":
+            return [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-profile:v",
+                "high",
+                "-level",
+                "4.1",
+                "-b:v",
+                `${bitrateKbps}k`,
+                "-maxrate",
+                `${Math.floor(bitrateKbps * 1.07)}k`,
+                "-bufsize",
+                `${bitrateKbps * 2}k`,
+            ];
+        case "h264_nvenc":
+            return [
+                "-c:v",
+                "h264_nvenc",
+                "-preset",
+                "p4",
+                "-tune",
+                "hq",
+                "-rc",
+                "vbr",
+                "-cq",
+                "21",
+                "-b:v",
+                `${bitrateKbps}k`,
+                "-maxrate",
+                `${Math.floor(bitrateKbps * 1.07)}k`,
+            ];
+        case "libopenh264":
+            // libopenh264 has a smaller knob surface; quality is best-effort.
+            return ["-c:v", "libopenh264", "-b:v", `${bitrateKbps}k`];
+    }
 };
 
 // ------------------------------------------------------------------

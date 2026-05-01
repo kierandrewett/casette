@@ -4,20 +4,23 @@ import { env } from "@/env";
 
 import { transcodeHandler, type TranscodePayload } from "./jobs/transcode";
 
-// Idempotent guard: pg-boss must only be started once per process.
-// The instrumentation.ts hook also has a guard, but this one protects against
-// direct imports in dev HMR scenarios.
-const g = globalThis as unknown as { __VIDEO_WORKER_BOOTED__?: boolean };
+// Why globalThis: Next.js loads instrumentation.ts and route handlers into
+// separate module trees, so a module-scoped `let boss` would be initialised
+// by instrumentation but read as `null` from the upload route. Stashing the
+// instance on globalThis gives both module trees the same handle.
+type WorkerGlobals = {
+    __CASSETTE_WORKER_BOOTED__?: boolean;
+    __CASSETTE_WORKER_BOOT_PROMISE__?: Promise<void>;
+    __CASSETTE_PG_BOSS__?: PgBoss;
+};
 
-let boss: PgBoss | null = null;
+const workerGlobal = globalThis as unknown as WorkerGlobals;
 
-// registerWorker is called from instrumentation.ts on server boot.
-// It is a no-op if the worker has already been registered in this process.
-export const registerWorker = async (): Promise<void> => {
-    if (g.__VIDEO_WORKER_BOOTED__) return;
-    g.__VIDEO_WORKER_BOOTED__ = true;
+const bootOnce = async (): Promise<void> => {
+    if (workerGlobal.__CASSETTE_WORKER_BOOTED__) return;
+    workerGlobal.__CASSETTE_WORKER_BOOTED__ = true;
 
-    boss = new PgBoss({
+    const boss = new PgBoss({
         connectionString: env.DATABASE_URL,
         schema: "pgboss",
         // Retain completed jobs for 24 h so the studio can display history.
@@ -31,10 +34,17 @@ export const registerWorker = async (): Promise<void> => {
 
     await boss.start();
 
-    // batchSize = TRANSCODE_CONCURRENCY: pg-boss v10 fetches up to batchSize
-    // jobs at once and calls the handler with the batch. The handler is wired
-    // to process one at a time (see the job handler signature), matching the
-    // v9 teamSize/teamConcurrency contract described in PLAN §6.
+    workerGlobal.__CASSETTE_PG_BOSS__ = boss;
+
+    // pg-boss v10 makes queues explicit objects: createQueue is required
+    // before send() or work() will accept the name. v9 created queues
+    // implicitly which is why the original plan did not mention this.
+    // retryLimit / retryBackoff are passed on send() per-job so we leave
+    // the queue defaults alone here.
+    await boss.createQueue("transcode-video");
+
+    // pg-boss v10 fetches up to batchSize jobs at once. Our handler iterates
+    // serially, so batchSize maps onto the v9 teamSize/teamConcurrency knob.
     await boss.work<TranscodePayload>(
         "transcode-video",
         { batchSize: env.TRANSCODE_CONCURRENCY },
@@ -42,11 +52,29 @@ export const registerWorker = async (): Promise<void> => {
     );
 
     console.log(
-        `[worker] pg-boss started; registered transcode-video worker (teamSize=${env.TRANSCODE_CONCURRENCY})`,
+        `[worker] pg-boss started; registered transcode-video worker (batchSize=${env.TRANSCODE_CONCURRENCY})`,
     );
 };
 
-// Expose boss for the upload route to enqueue jobs.
-// Returns null before registerWorker() has been called (e.g. during cold-start
-// race). Callers should handle this gracefully.
-export const getBoss = (): PgBoss | null => boss;
+// registerWorker is called from instrumentation.ts on server boot. Idempotent.
+export const registerWorker = async (): Promise<void> => {
+    if (!workerGlobal.__CASSETTE_WORKER_BOOT_PROMISE__) {
+        workerGlobal.__CASSETTE_WORKER_BOOT_PROMISE__ = bootOnce();
+    }
+    await workerGlobal.__CASSETTE_WORKER_BOOT_PROMISE__;
+};
+
+// Returns the live boss instance, or null if boot has not yet completed.
+export const getBoss = (): PgBoss | null => workerGlobal.__CASSETTE_PG_BOSS__ ?? null;
+
+// On-demand boot for routes that hit the queue before instrumentation has
+// finished its first run (cold-start race in dev). Awaits whichever boot is
+// already in flight via the same workerGlobal flag.
+export const ensureBoss = async (): Promise<PgBoss> => {
+    await registerWorker();
+    const boss = workerGlobal.__CASSETTE_PG_BOSS__;
+    if (!boss) {
+        throw new Error("pg-boss failed to initialise");
+    }
+    return boss;
+};

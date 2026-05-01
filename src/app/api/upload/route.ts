@@ -15,7 +15,7 @@ import { db } from "@/server/db/client";
 import { channelMembers, channels } from "@/server/db/schema/channels";
 import { transcodeJobs, type TranscodeJobState } from "@/server/db/schema/jobs";
 import { videos } from "@/server/db/schema/videos";
-import { getBoss } from "@/worker/boot";
+import { ensureBoss } from "@/worker/boot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -263,27 +263,26 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     // ---- 10. Enqueue pg-boss job ----
 
-    const boss = getBoss();
-    if (boss) {
-        const pgbossJobId = await boss.send(
-            "transcode-video",
-            { videoId },
-            {
-                retryLimit: 2,
-                retryBackoff: true,
-                expireInHours: 6,
-                singletonKey: videoId,
-            },
-        );
+    // ensureBoss boots the worker on demand if instrumentation has not yet
+    // landed it (this can happen on cold-start race in dev mode where the
+    // request lands before instrumentation.ts has fully run).
+    const boss = await ensureBoss();
+    const pgbossJobId = await boss.send(
+        "transcode-video",
+        { videoId },
+        {
+            retryLimit: 2,
+            retryBackoff: true,
+            expireInHours: 6,
+            singletonKey: videoId,
+        },
+    );
 
-        if (pgbossJobId && jobRow) {
-            await db
-                .update(transcodeJobs)
-                .set({ pgbossJobId })
-                .where(eq(transcodeJobs.id, jobRow.id));
-        }
-    } else {
-        console.warn("[upload] pg-boss not yet initialised; job will not be enqueued until worker boots");
+    if (pgbossJobId && jobRow) {
+        await db
+            .update(transcodeJobs)
+            .set({ pgbossJobId })
+            .where(eq(transcodeJobs.id, jobRow.id));
     }
 
     // ---- 11. Respond 201 ----

@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { env } from "@/env";
 import { extractEmbeddedCaptions } from "@/lib/transcode/captions";
 import { containerChapters, mergeChapters, parseDescriptionChapters, withEndSec } from "@/lib/transcode/chapters";
-import { FfmpegError, isNvencAvailable, runFfmpeg, spawnFfmpeg } from "@/lib/transcode/ffmpeg";
+import { FfmpegError, type H264Encoder, resolveH264Encoder, runFfmpeg, spawnFfmpeg } from "@/lib/transcode/ffmpeg";
 import { buildLadder, type Rung } from "@/lib/transcode/ladder";
 import { probe } from "@/lib/transcode/probe";
 import { generateSprite } from "@/lib/transcode/sprite";
@@ -156,10 +156,13 @@ const runPipeline = async (videoId: string): Promise<void> => {
     const hlsRoot = makeHlsDir(videoId);
     await ensureDir(hlsRoot);
 
-    // Choose encoder.
-    const useNvenc = env.ENABLE_NVENC && (await isNvencAvailable());
-    if (env.ENABLE_NVENC && !useNvenc) {
-        console.warn("[transcode] ENABLE_NVENC=1 but h264_nvenc not available; falling back to libx264");
+    // Choose encoder. Order: NVENC (if requested by env) > libx264 > libopenh264.
+    // libopenh264 fallback exists so the worker still runs against Fedora's
+    // ffmpeg-free build (no GPL libx264) — useful for local dev and CI on
+    // distributions that ship the trimmed ffmpeg.
+    const encoder = await resolveH264Encoder(env.ENABLE_NVENC);
+    if (env.ENABLE_NVENC && encoder !== "h264_nvenc") {
+        console.warn(`[transcode] ENABLE_NVENC=1 but h264_nvenc not available; falling back to ${encoder}`);
     }
 
     await runTranscode({
@@ -168,7 +171,7 @@ const runPipeline = async (videoId: string): Promise<void> => {
         ladder,
         durationSec: meta.durationSec,
         hasAudio: !!meta.audioStream,
-        useNvenc,
+        encoder,
         onProgress: async (fraction) => {
             // Map transcode progress (0–1) to 10–70% overall.
             const overall = Math.round(10 + fraction * 60);
@@ -287,12 +290,12 @@ type RunTranscodeOptions = {
     ladder: Rung[];
     durationSec: number;
     hasAudio: boolean;
-    useNvenc: boolean;
+    encoder: H264Encoder;
     onProgress: (fraction: number) => Promise<void>;
 };
 
 const runTranscode = async (opts: RunTranscodeOptions): Promise<void> => {
-    const { sourcePath, hlsRoot, ladder, durationSec, hasAudio, useNvenc, onProgress } = opts;
+    const { sourcePath, hlsRoot, ladder, durationSec, hasAudio, encoder, onProgress } = opts;
     const n = ladder.length;
 
     // Build filter_complex: split the video stream N ways, scale each output.
@@ -316,7 +319,7 @@ const runTranscode = async (opts: RunTranscodeOptions): Promise<void> => {
             args.push("-map", "0:a:0?");
         }
 
-        if (useNvenc) {
+        if (encoder === "h264_nvenc") {
             args.push(
                 `-c:v:${i}`, "h264_nvenc",
                 `-preset:v:${i}`, "p4",
@@ -324,12 +327,17 @@ const runTranscode = async (opts: RunTranscodeOptions): Promise<void> => {
                 `-rc:v:${i}`, "vbr",
                 `-cq:v:${i}`, "21",
             );
-        } else {
+        } else if (encoder === "libx264") {
             args.push(
                 `-c:v:${i}`, "libx264",
                 `-preset:v:${i}`, "veryfast",
                 `-profile:v:${i}`, "high",
                 `-level:v:${i}`, "4.1",
+            );
+        } else {
+            // libopenh264 supports a much smaller knob surface than libx264.
+            args.push(
+                `-c:v:${i}`, "libopenh264",
             );
         }
 

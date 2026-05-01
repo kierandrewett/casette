@@ -11,7 +11,14 @@ const serverSchema = z.object({
     MEDIA_HLS_PATH: z.string().min(1),
     MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(21474836480),
     TRANSCODE_CONCURRENCY: z.coerce.number().int().positive().default(1),
-    ENABLE_NVENC: z.coerce.boolean().default(false),
+    // z.coerce.boolean() trips up on "0" (every non-empty string is truthy in
+    // JavaScript). Parse explicitly so ENABLE_NVENC="0" actually means off.
+    ENABLE_NVENC: z
+        .preprocess(
+            (v) => (typeof v === "string" ? ["1", "true", "yes", "on"].includes(v.toLowerCase()) : v),
+            z.boolean(),
+        )
+        .default(false),
     // ADMIN_EMAIL is a bootstrap convenience for the first-run admin seed; it
     // bypasses Better-Auth's signup flow and is allowed to be a local-only
     // address like "admin@local" so first boot works on a fresh box.
