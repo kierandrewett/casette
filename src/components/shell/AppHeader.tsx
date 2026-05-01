@@ -44,6 +44,7 @@ import {
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { CassetteWordmark } from "@/components/branding/CassetteWordmark";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { QueueButton } from "@/components/header/QueueButton";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 import { PwaInstallButton } from "@/components/shell/PwaInstallButton";
 
@@ -202,10 +203,7 @@ export const AppHeader = ({ user, isAdmin = false }: AppHeaderProps) => {
             <div className="flex justify-center px-4">
                 <Popover open={searchOpen} onOpenChange={setSearchOpen}>
                     <PopoverAnchor asChild>
-                        <form
-                            onSubmit={handleSearchSubmit}
-                            className="relative flex w-full max-w-xl items-center"
-                        >
+                        <form onSubmit={handleSearchSubmit} className="relative flex w-full max-w-xl items-center">
                             <Search01Icon
                                 size={16}
                                 strokeWidth={1.6}
@@ -262,6 +260,10 @@ export const AppHeader = ({ user, isAdmin = false }: AppHeaderProps) => {
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+
+                {/* Queue chip — hidden when signed-out OR the queue is empty.
+                    Click opens a popover with each item (remove + Play all). */}
+                <QueueButton enabled={!!user} />
 
                 {/* Notifications bell — disabled when signed out so we do not poll. */}
                 <NotificationBell enabled={!!user} />
