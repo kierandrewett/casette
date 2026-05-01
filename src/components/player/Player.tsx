@@ -482,18 +482,29 @@ const PlayerInner = ({
 };
 
 // Tiny component that hooks up the pause event handler.
+//
+// onPause is captured in a ref so we can re-key the effect on `paused` only.
+// If onPause were a dep, the parent's freshly-allocated handlePause closure
+// would re-run this effect every render, and a re-render kicked off by the
+// mutation that onPause triggers would cascade back through the same path —
+// "Maximum update depth exceeded".
 const PauseHandler = ({ onPause }: { onPause: () => void }) => {
     const paused = useMediaState("paused");
     const hasStarted = useRef(false);
+    const onPauseRef = useRef(onPause);
+    useEffect(() => {
+        onPauseRef.current = onPause;
+    });
 
     useEffect(() => {
-        if (!paused && !hasStarted.current) {
+        if (!paused) {
             hasStarted.current = true;
+            return;
         }
         if (paused && hasStarted.current) {
-            onPause();
+            onPauseRef.current();
         }
-    }, [paused, onPause]);
+    }, [paused]);
 
     return null;
 };
