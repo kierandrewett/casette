@@ -1,7 +1,21 @@
-import { bigint, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+    type AnyPgColumn,
+    bigint,
+    boolean,
+    index,
+    integer,
+    pgTable,
+    primaryKey,
+    text,
+    timestamp,
+    uniqueIndex,
+    uuid,
+} from "drizzle-orm/pg-core";
 
 import { citext } from "./_types";
 import { user } from "./auth";
+// Lazy cross-module binding — see pinnedVideoId comment below.
+import * as videosRef from "./videos";
 
 export const channels = pgTable(
     "channels",
@@ -20,6 +34,18 @@ export const channels = pgTable(
         diskQuotaBytes: bigint("disk_quota_bytes", { mode: "number" }),
         // Auto-prune: delete public videos older than this many days. NULL = never.
         autoPruneDays: integer("auto_prune_days"),
+        // Optional pinned "channel trailer" video. The forward reference to
+        // videos.id is resolved lazily inside the references thunk — both
+        // schema modules cross-import, but drizzle invokes the thunk after
+        // module initialisation, by which time `videos` is bound.
+        // ON DELETE SET NULL: deleting the pinned video clears the pin.
+        pinnedVideoId: uuid("pinned_video_id").references((): AnyPgColumn => videosRef.videos.id, {
+            onDelete: "set null",
+        }),
+        // When true, all new comments on this channel's videos are flagged
+        // is_pending=true and held out of comment.list until a moderator
+        // approves them. Default false keeps existing channels open.
+        moderateComments: boolean("moderate_comments").notNull().default(false),
         createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     },

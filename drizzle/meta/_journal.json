@@ -71,6 +71,13 @@
       "when": 1777647402306,
       "tag": "0009_past_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777650722556,
+      "tag": "0010_smiling_alice",
+      "breakpoints": true
     }
   ]
 }

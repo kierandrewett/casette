@@ -66,6 +66,16 @@ export const videos = pgTable(
         viewCount: bigint("view_count", { mode: "number" }).notNull().default(0),
         likeCount: integer("like_count").notNull().default(0),
         dislikeCount: integer("dislike_count").notNull().default(0),
+        // Drafts: when true, the upload route stores the file but does NOT
+        // enqueue a transcode job. Drafts can be flipped to live via
+        // video.publish (manual) or by a scheduled publish-video pg-boss job
+        // when publishAt is set. Privacy stays orthogonal — a draft can be
+        // public/unlisted/private upon publish.
+        isDraft: boolean("is_draft").notNull().default(false),
+        // Optional scheduled publish time. When publishAt is in the future
+        // and isDraft=true, the upload route enqueues a publish-video job
+        // with startAfter=publishAt.
+        publishAt: timestamp("publish_at", { withTimezone: true }),
         publishedAt: timestamp("published_at", { withTimezone: true }),
         createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -75,6 +85,7 @@ export const videos = pgTable(
         channelIdx: index("videos_channel_idx").on(t.channelId, t.publishedAt.desc()),
         privacyIdx: index("videos_privacy_idx").on(t.privacy, t.publishedAt.desc()),
         statusIdx: index("videos_status_idx").on(t.status),
+        draftIdx: index("videos_draft_idx").on(t.isDraft),
         unlistedIdx: uniqueIndex("videos_unlisted_slug_idx").on(t.unlistedSlug),
         searchGin: index("videos_search_gin").using("gin", t.searchVector),
         trgmTitle: index("videos_title_trgm").using("gin", sql`title gin_trgm_ops`),

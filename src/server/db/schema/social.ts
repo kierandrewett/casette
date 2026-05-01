@@ -72,6 +72,10 @@ export const comments = pgTable(
         body: text("body").notNull(),
         isPinned: boolean("is_pinned").notNull().default(false),
         isHearted: boolean("is_hearted").notNull().default(false),
+        // When true, the comment is held in the moderation queue and not
+        // returned by comment.list. Channel owners/managers see the row
+        // through comment.listPending and approve/reject it.
+        isPending: boolean("is_pending").notNull().default(false),
         editedAt: timestamp("edited_at", { withTimezone: true }),
         deletedAt: timestamp("deleted_at", { withTimezone: true }),
         likeCount: integer("like_count").notNull().default(0),
@@ -82,6 +86,7 @@ export const comments = pgTable(
         videoIdx: index("comments_video_idx").on(t.videoId, t.isPinned.desc(), t.createdAt.desc()),
         rootIdx: index("comments_root_idx").on(t.rootId, t.createdAt.asc()),
         parentIdx: index("comments_parent_idx").on(t.parentId),
+        pendingIdx: index("comments_pending_idx").on(t.isPending, t.createdAt.desc()),
     }),
 );
 
