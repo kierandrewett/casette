@@ -569,7 +569,10 @@ export const videoRouter = createTRPCRouter({
         .input(z.object({ videoId: z.string().uuid() }))
         .mutation(async ({ ctx, input }) => {
             const videoRows = await ctx.db
-                .select({ channelId: videos.channelId })
+                .select({
+                    channelId: videos.channelId,
+                    sourcePath: videos.sourcePath,
+                })
                 .from(videos)
                 .where(eq(videos.id, input.videoId))
                 .limit(1);
@@ -591,7 +594,28 @@ export const videoRouter = createTRPCRouter({
                 throw new TRPCError({ code: "FORBIDDEN", message: "Only owners or managers can delete videos." });
             }
 
+            // Capture the channel handle before we delete the video row so
+            // the on-disk cleanup can rebuild the source path even if the
+            // sourcePath column is null.
+            const channelRows = await ctx.db
+                .select({ handle: channels.handle })
+                .from(channels)
+                .where(eq(channels.id, video.channelId))
+                .limit(1);
+            const channelHandle = channelRows[0]?.handle ?? "_orphan";
+
             await ctx.db.delete(videos).where(eq(videos.id, input.videoId));
+
+            // Best-effort filesystem cleanup. Fire-and-forget so the API
+            // returns quickly even on slow disks; errors are logged inside
+            // the helper.
+            const { cleanupVideoFiles } = await import("@/lib/cleanup");
+            void cleanupVideoFiles({
+                videoId: input.videoId,
+                sourcePath: video.sourcePath,
+                channelHandle,
+            });
+
             return { ok: true };
         }),
 });
