@@ -187,7 +187,7 @@ export const AddToPlaylistButton = ({ videoId }: AddToPlaylistButtonProps) => {
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 rounded-md bg-black/60 text-white hover:bg-black/80"
+                    className="h-7 w-7 rounded-full bg-white/15 text-white shadow-sm ring-1 ring-white/20 backdrop-blur-md transition-colors hover:bg-white/25 focus-visible:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                     aria-label="Save to playlist"
                     onClick={(e) => e.stopPropagation()}
                 >
