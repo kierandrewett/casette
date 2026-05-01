@@ -405,4 +405,193 @@ export const videoRouter = createTRPCRouter({
 
             return { ...nextRows[0], channel };
         }),
+
+    // ---------------------------------------------------------------------------
+    // listForChannel — channel-scoped video list for the studio video table.
+    // Returns ALL the channel's videos including unlisted/private/queued/failed.
+    // Caller must be a member of the channel (any role).
+    // ---------------------------------------------------------------------------
+    listForChannel: protectedProcedure
+        .input(
+            z.object({
+                channelId: z.string().uuid(),
+                limit: z.number().int().positive().max(100).default(50),
+                cursor: z.string().uuid().optional(),
+            }),
+        )
+        .query(async ({ ctx, input }) => {
+            // authz: caller must be a channel member
+            const memberRows = await ctx.db
+                .select({ role: channelMembers.role })
+                .from(channelMembers)
+                .where(
+                    and(
+                        eq(channelMembers.channelId, input.channelId),
+                        eq(channelMembers.userId, ctx.user.id),
+                    ),
+                )
+                .limit(1);
+            if (!memberRows[0]) {
+                throw new TRPCError({ code: "FORBIDDEN", message: "Not a member of this channel." });
+            }
+
+            const cursorRow = input.cursor
+                ? await ctx.db
+                      .select({ createdAt: videos.createdAt })
+                      .from(videos)
+                      .where(eq(videos.id, input.cursor))
+                      .limit(1)
+                : [];
+            const cursorTs = cursorRow[0]?.createdAt;
+
+            const rows = await ctx.db
+                .select()
+                .from(videos)
+                .where(
+                    and(
+                        eq(videos.channelId, input.channelId),
+                        cursorTs ? sql`${videos.createdAt} < ${cursorTs}` : undefined,
+                    ),
+                )
+                .orderBy(desc(videos.createdAt))
+                .limit(input.limit + 1);
+
+            const hasMore = rows.length > input.limit;
+            const items = hasMore ? rows.slice(0, input.limit) : rows;
+            const last = items[items.length - 1];
+            return {
+                items,
+                nextCursor: hasMore && last ? last.id : null,
+            };
+        }),
+
+    // ---------------------------------------------------------------------------
+    // updateMetadata — title/description edits. Caller must be a channel member.
+    // ---------------------------------------------------------------------------
+    updateMetadata: protectedProcedure
+        .input(
+            z.object({
+                videoId: z.string().uuid(),
+                title: z.string().trim().min(1).max(200).optional(),
+                description: z.string().trim().max(10_000).optional(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const videoRows = await ctx.db
+                .select({ channelId: videos.channelId })
+                .from(videos)
+                .where(eq(videos.id, input.videoId))
+                .limit(1);
+            const video = videoRows[0];
+            if (!video) throw new TRPCError({ code: "NOT_FOUND" });
+
+            const memberRows = await ctx.db
+                .select({ role: channelMembers.role })
+                .from(channelMembers)
+                .where(
+                    and(
+                        eq(channelMembers.channelId, video.channelId),
+                        eq(channelMembers.userId, ctx.user.id),
+                    ),
+                )
+                .limit(1);
+            if (!memberRows[0]) throw new TRPCError({ code: "FORBIDDEN" });
+
+            const patch: Partial<typeof videos.$inferInsert> = { updatedAt: new Date() };
+            if (input.title !== undefined) patch.title = input.title;
+            if (input.description !== undefined) patch.description = input.description;
+
+            const [updated] = await ctx.db
+                .update(videos)
+                .set(patch)
+                .where(eq(videos.id, input.videoId))
+                .returning();
+            return updated!;
+        }),
+
+    // ---------------------------------------------------------------------------
+    // setPrivacy — public / unlisted / private. Mints a new unlistedSlug when
+    // moving INTO unlisted; nulls it when moving away.
+    // ---------------------------------------------------------------------------
+    setPrivacy: protectedProcedure
+        .input(
+            z.object({
+                videoId: z.string().uuid(),
+                privacy: z.enum(["public", "unlisted", "private"]),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const videoRows = await ctx.db
+                .select({ channelId: videos.channelId, currentPrivacy: videos.privacy })
+                .from(videos)
+                .where(eq(videos.id, input.videoId))
+                .limit(1);
+            const video = videoRows[0];
+            if (!video) throw new TRPCError({ code: "NOT_FOUND" });
+
+            const memberRows = await ctx.db
+                .select({ role: channelMembers.role })
+                .from(channelMembers)
+                .where(
+                    and(
+                        eq(channelMembers.channelId, video.channelId),
+                        eq(channelMembers.userId, ctx.user.id),
+                    ),
+                )
+                .limit(1);
+            if (!memberRows[0]) throw new TRPCError({ code: "FORBIDDEN" });
+
+            const { unlistedSlug } = await import("@/lib/slug");
+            const newSlug =
+                input.privacy === "unlisted" && video.currentPrivacy !== "unlisted" ? unlistedSlug() : undefined;
+
+            const patch: Partial<typeof videos.$inferInsert> = { privacy: input.privacy, updatedAt: new Date() };
+            if (input.privacy === "unlisted") {
+                patch.unlistedSlug = newSlug;
+            } else {
+                patch.unlistedSlug = null;
+            }
+
+            const [updated] = await ctx.db
+                .update(videos)
+                .set(patch)
+                .where(eq(videos.id, input.videoId))
+                .returning();
+            return updated!;
+        }),
+
+    // ---------------------------------------------------------------------------
+    // delete — soft delete by removing the row. Cascades clean up child rows.
+    // The caller is responsible for separately wiping the on-disk source +
+    // hls files; we leave that to a future janitor pass so a delete is fast.
+    // ---------------------------------------------------------------------------
+    delete: protectedProcedure
+        .input(z.object({ videoId: z.string().uuid() }))
+        .mutation(async ({ ctx, input }) => {
+            const videoRows = await ctx.db
+                .select({ channelId: videos.channelId })
+                .from(videos)
+                .where(eq(videos.id, input.videoId))
+                .limit(1);
+            const video = videoRows[0];
+            if (!video) throw new TRPCError({ code: "NOT_FOUND" });
+
+            const memberRows = await ctx.db
+                .select({ role: channelMembers.role })
+                .from(channelMembers)
+                .where(
+                    and(
+                        eq(channelMembers.channelId, video.channelId),
+                        eq(channelMembers.userId, ctx.user.id),
+                    ),
+                )
+                .limit(1);
+            const role = memberRows[0]?.role;
+            if (role !== "owner" && role !== "manager") {
+                throw new TRPCError({ code: "FORBIDDEN", message: "Only owners or managers can delete videos." });
+            }
+
+            await ctx.db.delete(videos).where(eq(videos.id, input.videoId));
+            return { ok: true };
+        }),
 });
