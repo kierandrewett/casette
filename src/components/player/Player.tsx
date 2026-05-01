@@ -24,6 +24,7 @@ import { UpNextOverlay } from "./UpNextOverlay";
 import { KeyboardShortcutsOverlay, useShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { useWatchBeacon, sendPauseBeacon } from "./useWatchBeacon";
 import { useIdleControls } from "./useIdleControls";
+import { useMediaSession } from "./useMediaSession";
 
 interface NextVideo {
     id: string;
@@ -279,6 +280,15 @@ const PlayerInner = ({
     const seek = (seconds: number) => remote.seek(seconds);
 
     useWatchBeacon({ videoId: video.id, getPositionSec, seek });
+
+    // Wire the W3C Media Session so OS lockscreen / MPRIS / Now Playing
+    // surfaces show metadata and accept play/pause/seek/prev/next.
+    useMediaSession({
+        player,
+        video: { id: video.id, title: video.title, thumbnailPath: video.thumbnailPath },
+        channel: { name: channel.name },
+        queue: { next: queueNext ? { id: queueNext.id } : null, prev: null },
+    });
 
     // Pause beacon.
     const handlePause = () => {
