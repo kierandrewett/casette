@@ -70,6 +70,17 @@ export const auth = betterAuth({
     session: {
         expiresIn: 60 * 60 * 24 * 30,
         updateAge: 60 * 60 * 24,
+        // Cache the session payload in a signed cookie for 5 minutes so the
+        // common case (every server component in a page render calling
+        // getSession) skips the DB entirely. Better-Auth invalidates the
+        // cache automatically on sign-out / token rotation; long-running
+        // sessions still re-fetch every 5 min so revoked sessions stop
+        // working within that window. The cookie is signed with
+        // BETTER_AUTH_SECRET so an attacker can't forge a cached payload.
+        cookieCache: {
+            enabled: true,
+            maxAge: 60 * 5,
+        },
     },
     databaseHooks: {
         session: {
