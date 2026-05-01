@@ -107,12 +107,20 @@
         cursor: none;
     }
 
-    /* Glass surface used by overlays and menus throughout the app. */
+    /* Glass surface used by overlays and menus throughout the app. The
+       popover token (--popover) is theme-aware, so this surface inherits the
+       active theme's panel colour instead of always being near-black. The
+       0.92/0.94 alpha keeps the glass feel without bleeding too much of the
+       page underneath through. */
     .surface-glass {
-        background: rgba(11, 11, 13, 0.72);
-        backdrop-filter: blur(20px) saturate(150%);
-        -webkit-backdrop-filter: blur(20px) saturate(150%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: hsl(var(--popover) / 0.94);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        border: 1px solid hsl(var(--border));
+        color: hsl(var(--popover-foreground));
+    }
+    .dark .surface-glass {
+        background: hsl(var(--popover) / 0.78);
     }
 
     /* Stronger glass surface for player popovers (Settings / Captions / Sleep
