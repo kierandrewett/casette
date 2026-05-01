@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, Link2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Code2, Link2 } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -19,28 +19,45 @@ interface ShareButtonProps {
 
 export const ShareButton = ({ videoId, slug, isPrivate = false }: ShareButtonProps) => {
     const [open, setOpen] = useState(false);
-    const [copied, setCopied] = useState(false);
+    const [copiedKind, setCopiedKind] = useState<"link" | "embed" | null>(null);
     const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Build the full URL client-side so SSR doesn't need the host.
-    const url =
-        typeof window !== "undefined"
-            ? `${window.location.origin}/watch/${videoId}${slug ? `?slug=${slug}` : ""}`
-            : `/watch/${videoId}${slug ? `?slug=${slug}` : ""}`;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
 
-    const handleCopy = async () => {
+    const url = `${origin}/watch/${videoId}${slug ? `?slug=${slug}` : ""}`;
+    const embedSrc = `${origin}/embed/${videoId}${slug ? `?slug=${slug}` : ""}`;
+    const embedSnippet = useMemo(
+        () =>
+            `<iframe src="${embedSrc}" width="640" height="360" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`,
+        [embedSrc],
+    );
+
+    const flashCopied = (kind: "link" | "embed") => {
+        setCopiedKind(kind);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopiedKind(null), 1500);
+    };
+
+    const handleCopyLink = async () => {
         if (isPrivate) return;
         try {
             await navigator.clipboard.writeText(url);
-            setCopied(true);
-            if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-            copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+            flashCopied("link");
         } catch {
-            // Fallback: select the input text so the user can copy manually.
+            // Fallback: user can manually select the input contents.
         }
     };
 
-    // Clear timer on unmount.
+    const handleCopyEmbed = async () => {
+        if (isPrivate) return;
+        try {
+            await navigator.clipboard.writeText(embedSnippet);
+            flashCopied("embed");
+        } catch {
+            // Fallback only.
+        }
+    };
+
     useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
     return (
@@ -59,11 +76,12 @@ export const ShareButton = ({ videoId, slug, isPrivate = false }: ShareButtonPro
                 </button>
             </PopoverTrigger>
 
-            <PopoverContent className="w-80 space-y-3 p-4" align="end">
+            <PopoverContent className="w-96 space-y-4 p-4" align="end">
                 <p className="text-sm font-semibold text-foreground">Share</p>
 
-                {/* URL display */}
-                <div className="flex gap-2">
+                {/* Link section */}
+                <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Link</p>
                     <Input
                         readOnly
                         value={url}
@@ -71,50 +89,82 @@ export const ShareButton = ({ videoId, slug, isPrivate = false }: ShareButtonPro
                         className="flex-1 text-xs font-mono text-foreground/80 bg-secondary/50"
                         aria-label="Video URL"
                     />
+                    {isPrivate ? (
+                        <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="inline-block w-full">
+                                        <Button
+                                            variant="secondary"
+                                            className="w-full opacity-50 cursor-not-allowed"
+                                            disabled
+                                            aria-disabled="true"
+                                        >
+                                            <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                                            Copy link
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                    Playback of this video requires a signed-in member. The link is only
+                                    accessible to authorised viewers.
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    ) : (
+                        <Button
+                            variant="secondary"
+                            className="w-full"
+                            onClick={handleCopyLink}
+                            aria-live="polite"
+                        >
+                            {copiedKind === "link" ? (
+                                <>
+                                    <Check className="mr-2 h-4 w-4 text-green-500" aria-hidden="true" />
+                                    Copied
+                                </>
+                            ) : (
+                                <>
+                                    <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                                    Copy link
+                                </>
+                            )}
+                        </Button>
+                    )}
                 </div>
 
-                {/* Copy link button */}
-                {isPrivate ? (
-                    <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span className="inline-block w-full">
-                                    <Button
-                                        variant="secondary"
-                                        className="w-full opacity-50 cursor-not-allowed"
-                                        disabled
-                                        aria-disabled="true"
-                                    >
-                                        <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                                        Copy link
-                                    </Button>
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">
-                                Playback of this video requires a signed-in member. The link is only
-                                accessible to authorised viewers.
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                ) : (
-                    <Button
-                        variant="secondary"
-                        className="w-full"
-                        onClick={handleCopy}
-                        aria-live="polite"
-                    >
-                        {copied ? (
-                            <>
-                                <Check className="mr-2 h-4 w-4 text-green-500" aria-hidden="true" />
-                                Copied
-                            </>
-                        ) : (
-                            <>
-                                <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                                Copy link
-                            </>
-                        )}
-                    </Button>
+                {/* Embed section. Hidden on private (the iframe could not load). */}
+                {isPrivate ? null : (
+                    <div className="space-y-2 border-t border-border pt-4">
+                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                            Embed
+                        </p>
+                        <textarea
+                            readOnly
+                            value={embedSnippet}
+                            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                            className="flex-1 h-20 w-full resize-none rounded-md border border-border bg-secondary/50 p-2 text-[11px] font-mono text-foreground/80"
+                            aria-label="Embed snippet"
+                        />
+                        <Button
+                            variant="secondary"
+                            className="w-full"
+                            onClick={handleCopyEmbed}
+                            aria-live="polite"
+                        >
+                            {copiedKind === "embed" ? (
+                                <>
+                                    <Check className="mr-2 h-4 w-4 text-green-500" aria-hidden="true" />
+                                    Copied
+                                </>
+                            ) : (
+                                <>
+                                    <Code2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                                    Copy embed code
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 )}
             </PopoverContent>
         </Popover>

@@ -98,3 +98,15 @@ stack-logs:
 
 smoke:
     bash scripts/smoke.sh
+
+# ---------------------------------------------------------------------------
+# Maintenance
+# ---------------------------------------------------------------------------
+
+# Dry-run the orphan-file janitor.
+janitor:
+    yarn tsx scripts/janitor.ts
+
+# Actually apply the cleanup (deletes orphan files and HLS dirs).
+janitor-apply:
+    yarn tsx scripts/janitor.ts --apply
