@@ -90,11 +90,10 @@ export const SearchResultCard = ({ video, progress, className }: SearchResultCar
                     )}
                 </p>
 
-                <p className="truncate text-xs text-muted-foreground">
-                    {video.channel.name} <span aria-hidden="true">&middot;</span>
-                    {" @"}
-                    {video.channel.handle}
-                </p>
+                {/* Channel name only — @handle dropped here since the name
+                    already identifies the uploader and the redundant pair
+                    looks noisy. Match VideoCard. */}
+                <p className="truncate text-xs text-muted-foreground">{video.channel.name}</p>
 
                 {snippet && (
                     <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{snippet}</p>
