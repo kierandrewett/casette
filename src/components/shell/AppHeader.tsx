@@ -176,7 +176,7 @@ export const AppHeader = ({ user, isAdmin = false, onMenuToggle }: AppHeaderProp
             // left between the asymmetric left (hamburger + wordmark) and
             // right (create + bell + avatar) clusters. items-center
             // vertical-aligns each cluster.
-            className="fixed inset-x-0 top-0 z-50 grid h-14 grid-cols-[1fr_minmax(0,640px)_1fr] items-center gap-2 bg-background/90 px-3 backdrop-blur-sm"
+            className="fixed inset-x-0 top-0 z-50 grid h-14 grid-cols-[1fr_minmax(0,640px)_1fr] items-center gap-2 bg-background px-3"
         >
             {/* Left: hamburger + wordmark */}
             <div className="flex shrink-0 items-center gap-1 justify-self-start">

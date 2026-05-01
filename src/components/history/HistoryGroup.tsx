@@ -33,7 +33,7 @@ interface HistoryGroupProps {
 export const HistoryGroup = ({ label, items, onRemove }: HistoryGroupProps) => {
     return (
         <section className="space-y-1">
-            <h2 className="sticky top-14 z-10 bg-background/90 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground backdrop-blur md:px-6">
+            <h2 className="sticky top-14 z-10 bg-background px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:px-6">
                 {label}
             </h2>
 

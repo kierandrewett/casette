@@ -181,7 +181,7 @@ export const StudioSubNav = ({ channel, channels }: StudioSubNavProps) => {
                 // Sticks to the top of the AppShell content area on scroll. The
                 // 56px (3.5rem) offset matches the AppHeader height so the pill
                 // row never tucks behind the fixed header.
-                "sticky top-14 z-30 -mx-4 border-b border-border bg-background/85 px-4 backdrop-blur-md md:-mx-6 md:px-6 lg:-mx-8 lg:px-8",
+                "sticky top-14 z-30 -mx-4 border-b border-border bg-background px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8",
             )}
         >
             <div className="flex items-center gap-3 overflow-x-auto py-3">
