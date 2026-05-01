@@ -15,6 +15,7 @@ import { SEEK_EVENT, usePlayerStore } from "@/lib/player/store";
 import { readPreferences, writeVolume, writePlaybackRate, writeStatsOverlayEnabled } from "@/lib/player/preferences";
 import type { Video, VideoCaption, VideoChapter, VideoVariant } from "@/server/db/schema/videos";
 import { PlayerCanvas } from "./PlayerCanvas";
+import { PlayerContextMenu } from "./PlayerContextMenu";
 import { PlayerVignette } from "./PlayerVignette";
 import { PlayerTopBar } from "./PlayerTopBar";
 import { PlayerCenterStage } from "./PlayerCenterStage";
@@ -330,6 +331,10 @@ const PlayerInner = ({
 
                 <UpNextOverlay next={queueNext} />
             </PlayerCanvas>
+
+            {/* Custom right-click context menu — rendered outside the canvas
+                so it can position itself in viewport coordinates. */}
+            {controls !== "hidden" && <PlayerContextMenu videoId={video.id} />}
         </>
     );
 };
