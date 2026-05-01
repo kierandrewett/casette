@@ -160,7 +160,7 @@ export default async function WatchPage({ params, searchParams }: WatchPageProps
                                     >
                                         {channel.avatarPath ? (
                                             <Image
-                                                src={`/api/hls/${channel.handle}/avatar`}
+                                                src={`/api/channel/${channel.id}/asset/avatar`}
                                                 alt={channel.name}
                                                 width={40}
                                                 height={40}

@@ -7,6 +7,7 @@ import { usePlayerStore } from "@/lib/player/store";
 
 interface PlayerTopBarProps {
     title: string;
+    channelId: string;
     channelName: string;
     channelHandle: string;
     avatarPath: string | null;
@@ -17,7 +18,7 @@ interface PlayerTopBarProps {
  * Top glass-blur bar — shows title + channel info (only in theatre/fullscreen).
  * Fades in/out with the .player-bar class driven by the active data attribute.
  */
-export const PlayerTopBar = ({ title, channelName, channelHandle, avatarPath, active }: PlayerTopBarProps) => {
+export const PlayerTopBar = ({ title, channelId, channelName, channelHandle, avatarPath, active }: PlayerTopBarProps) => {
     const theatre = usePlayerStore((s) => s.theatre);
     const setTheatre = usePlayerStore((s) => s.setTheatre);
 
@@ -33,7 +34,7 @@ export const PlayerTopBar = ({ title, channelName, channelHandle, avatarPath, ac
             {/* Channel avatar */}
             {avatarPath ? (
                 <Image
-                    src={`/api/hls/${channelHandle}/avatar`}
+                    src={`/api/channel/${channelId}/asset/avatar`}
                     alt={channelName}
                     width={32}
                     height={32}

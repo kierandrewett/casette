@@ -224,7 +224,7 @@ export const LeftRail = ({ channels, isAdmin = false, isAuthenticated = false }:
                                                     <Avatar className="h-7 w-7">
                                                         {channel.avatarPath && (
                                                             <AvatarImage
-                                                                src={`/api/hls/${channel.avatarPath}`}
+                                                                src={`/api/channel/${channel.id}/asset/avatar`}
                                                                 alt={channel.name}
                                                             />
                                                         )}

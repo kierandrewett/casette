@@ -43,6 +43,7 @@ interface PlayerProps {
     // Next video in the queue or channel — used by UpNextOverlay.
     queueNext: NextVideo | null;
     channel: {
+        id: string;
         handle: string;
         name: string;
         avatarPath: string | null;
@@ -309,6 +310,7 @@ const PlayerInner = ({
                 {controls !== "hidden" && (
                     <PlayerTopBar
                         title={video.title}
+                        channelId={channel.id}
                         channelName={channel.name}
                         channelHandle={channel.handle}
                         avatarPath={channel.avatarPath}

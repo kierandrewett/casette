@@ -115,6 +115,7 @@ const EmbedPage = async ({ params, searchParams }: EmbedPageProps) => {
                 signedToken={signedToken}
                 queueNext={null}
                 channel={{
+                    id: channel.id,
                     handle: channel.handle,
                     name: channel.name,
                     avatarPath: channel.avatarPath,

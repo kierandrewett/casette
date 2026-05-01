@@ -68,7 +68,9 @@ const ExploreChannelsPage = async ({ searchParams }: PageProps) => {
                                     className="flex h-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/40"
                                 >
                                     <Avatar className="h-20 w-20">
-                                        {c.avatarPath && <AvatarImage src={`/api/hls/${c.avatarPath}`} alt={c.name} />}
+                                        {c.avatarPath && (
+                                            <AvatarImage src={`/api/channel/${c.id}/asset/avatar`} alt={c.name} />
+                                        )}
                                         <AvatarFallback className="text-xl uppercase">
                                             {c.name.slice(0, 2)}
                                         </AvatarFallback>
