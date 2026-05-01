@@ -38,27 +38,31 @@ const DropdownMenuSubContent = React.forwardRef<
     React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
     React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
 >(({ className, ...props }, ref) => (
-    <DropdownMenuPrimitive.SubContent
-        ref={ref}
-        sideOffset={4}
-        collisionPadding={8}
-        className={cn(
-            // Submenus open to the side of the parent and contain at most a
-            // handful of radio rows. The parent menu's max-height + overflow
-            // were leaking into here and clipping the submenu when it
-            // collided with the viewport edge — drop both, let the submenu
-            // size to its own content. collisionPadding still keeps it on
-            // screen by flipping/sliding.
-            "surface-glass z-50 min-w-[8rem] rounded-xl p-1 text-popover-foreground shadow-xl",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out",
-            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-            "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-            "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",
-            "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-            className,
-        )}
-        {...props}
-    />
+    // SubContent must render through a Portal so it escapes the parent
+    // Content's overflow-y-auto box. Without the Portal, the submenu was
+    // clipped at the parent's edge whenever it overflowed (Theme/Language
+    // submenus opening to the side at the bottom of the avatar dropdown).
+    <DropdownMenuPrimitive.Portal>
+        <DropdownMenuPrimitive.SubContent
+            ref={ref}
+            sideOffset={4}
+            collisionPadding={8}
+            className={cn(
+                // Submenus open to the side of the parent and contain at
+                // most a handful of radio rows. Let them size to their own
+                // content; collisionPadding keeps them on screen by
+                // flipping/sliding when they hit the viewport edge.
+                "surface-glass z-50 min-w-[8rem] rounded-xl p-1 text-popover-foreground shadow-xl",
+                "data-[state=open]:animate-in data-[state=closed]:animate-out",
+                "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+                "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+                "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",
+                "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+                className,
+            )}
+            {...props}
+        />
+    </DropdownMenuPrimitive.Portal>
 ));
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;
 
