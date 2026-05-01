@@ -146,9 +146,10 @@ export const LeftRail = ({
     return (
         <aside
             className={cn(
-                // top-14 puts the rail flush below the AppHeader; no padding
-                // hack on the inner content. left-0 + bottom-0 anchor the rest.
-                "fixed bottom-0 left-0 top-14 z-40 flex flex-col bg-background",
+                // The rail's parent (SidebarFrame) handles fixed positioning
+                // and the slide-in/out transform. Inside that, we just fill
+                // the available height starting below the AppHeader.
+                "flex h-full flex-col bg-background pt-14",
                 "w-[var(--rail-width)]",
             )}
             aria-label="Primary navigation"

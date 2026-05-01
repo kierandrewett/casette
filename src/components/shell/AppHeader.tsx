@@ -24,6 +24,7 @@ import { DEFAULT_LOCALE, LOCALE_COOKIE, type Locale } from "@/i18n/config";
 
 import { authClient } from "@/lib/auth-client";
 import { pushRecentSearch } from "@/lib/recent-searches";
+import { useSidebarStore } from "@/lib/store/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -56,8 +57,6 @@ interface AppHeaderProps {
     user: AppHeaderUser | null;
     /** Whether the signed-in user is an admin. Controls the Admin link in the avatar dropdown. */
     isAdmin?: boolean;
-    /** Callback to toggle the left rail collapsed state. */
-    onMenuToggle?: () => void;
 }
 
 type ThemeChoice = "system" | "light" | "dark";
@@ -102,11 +101,12 @@ const writeStoredLocale = (locale: Locale): void => {
     document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(locale)}; Path=/; Max-Age=${oneYear}; SameSite=Lax`;
 };
 
-export const AppHeader = ({ user, isAdmin = false, onMenuToggle }: AppHeaderProps) => {
+export const AppHeader = ({ user, isAdmin = false }: AppHeaderProps) => {
     const router = useRouter();
     const tNav = useTranslations("nav");
     const tSearch = useTranslations("search");
     const tSettings = useTranslations("settings");
+    const toggleSidebar = useSidebarStore((s) => s.toggle);
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
@@ -183,7 +183,7 @@ export const AppHeader = ({ user, isAdmin = false, onMenuToggle }: AppHeaderProp
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={onMenuToggle}
+                    onClick={() => toggleSidebar()}
                     aria-label="Toggle sidebar"
                     className="rounded-lg text-muted-foreground hover:text-foreground"
                 >
