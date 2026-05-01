@@ -1,9 +1,8 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import AppShell from "@/components/shell/AppShell";
 import { VideoGrid } from "@/components/video/VideoGrid";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channels } from "@/server/db/schema/channels";
 import { subscriptions } from "@/server/db/schema/social";
@@ -14,7 +13,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Subscriptions" };
 
 const SubscriptionsPage = async () => {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session?.user) {
         redirect("/login");
     }

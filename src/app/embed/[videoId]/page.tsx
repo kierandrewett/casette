@@ -1,10 +1,9 @@
-import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata, Viewport } from "next";
 
 import { Player } from "@/components/player/Player";
 import { signToken } from "@/lib/hls/sign";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { looksLikeUuid } from "@/lib/slug";
 import { parseTimestamp } from "@/lib/timestamp";
 import { db } from "@/server/db/client";
@@ -91,7 +90,7 @@ const EmbedPage = async ({ params, searchParams }: EmbedPageProps) => {
 
     let signedToken: string | null = null;
     if (video.privacy === "private") {
-        const session = await auth.api.getSession({ headers: await headers() });
+        const session = await getSession();
         if (!session?.user) notFound();
         signedToken = signToken({ videoId: video.id, userId: session.user.id, ttlSec: 4 * 3600 });
     }

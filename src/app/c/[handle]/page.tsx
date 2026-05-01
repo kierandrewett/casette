@@ -1,11 +1,10 @@
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import AppShell from "@/components/shell/AppShell";
 import { ChannelHeader } from "@/components/channel/ChannelHeader";
 import { ChannelTabs } from "@/components/channel/ChannelTabs";
 import { VideoGrid } from "@/components/video/VideoGrid";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channelMembers, channels } from "@/server/db/schema/channels";
 import { playlists } from "@/server/db/schema/playlists";
@@ -44,7 +43,7 @@ const ChannelPage = async ({ params, searchParams }: ChannelPageProps) => {
     const { handle } = await params;
     const { tab = "videos" } = await searchParams;
 
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
 
     // Load full channel row (including ownerId) directly from DB.
     const channel = await db

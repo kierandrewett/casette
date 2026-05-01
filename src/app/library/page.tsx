@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
@@ -17,7 +16,7 @@ import { PlaylistTile } from "@/components/library/PlaylistTile";
 import { EmptyShelfCard } from "@/components/library/EmptyShelfCard";
 import { VideoCard } from "@/components/video/VideoCard";
 import { QueueRow } from "@/components/library/QueueRow";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channels } from "@/server/db/schema/channels";
 import { watchHistory, watchProgress } from "@/server/db/schema/history";
@@ -30,7 +29,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Library" };
 
 const LibraryPage = async () => {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session?.user) {
         redirect("/login");
     }

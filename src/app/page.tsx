@@ -1,5 +1,4 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
 
@@ -8,7 +7,7 @@ import { RandomVideoButton } from "@/components/home/RandomVideoButton";
 import { TrendingTagsRow } from "@/components/home/TrendingTagsRow";
 import AppShell from "@/components/shell/AppShell";
 import { VideoGrid } from "@/components/video/VideoGrid";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channels } from "@/server/db/schema/channels";
 import { subscriptions } from "@/server/db/schema/social";
@@ -43,7 +42,7 @@ const getTrendingTags = unstable_cache(
 // Root surface. Signed-in viewers get the home shell (subscriptions + trending
 // + recent); anonymous viewers see the marketing hero with sign-in CTAs.
 const HomePage = async () => {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
 
     if (!session?.user) {
         return (

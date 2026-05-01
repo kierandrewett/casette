@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import AppShell from "@/components/shell/AppShell";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { DataPanel } from "@/components/settings/DataPanel";
@@ -17,7 +16,7 @@ import { SignOutButton } from "./SettingsClient";
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
 
     if (!session?.user) {
         redirect("/login");

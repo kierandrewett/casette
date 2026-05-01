@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -8,7 +7,7 @@ import AppShell from "@/components/shell/AppShell";
 import { PlaylistHero } from "@/components/playlist/PlaylistHero";
 import { PlaylistItemList } from "@/components/playlist/PlaylistItemList";
 import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channels } from "@/server/db/schema/channels";
 import { playlistItems, playlists } from "@/server/db/schema/playlists";
@@ -34,7 +33,7 @@ export async function generateMetadata({ params }: PlaylistPageProps): Promise<M
 const PlaylistPage = async ({ params }: PlaylistPageProps) => {
     const { id } = await params;
 
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
 
     const playlist = await db
         .select()

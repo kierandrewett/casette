@@ -1,6 +1,4 @@
-import { headers } from "next/headers";
-
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channels } from "@/server/db/schema";
 import { adminGrants } from "@/server/db/schema/admin";
@@ -19,7 +17,7 @@ interface AppShellProps {
 //   --rail-width: 220px
 //   --rail-collapsed-width: 60px
 const AppShell = async ({ children }: AppShellProps) => {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
 
     let user: AppHeaderUser | null = null;
     let userChannels: UserChannel[] = [];

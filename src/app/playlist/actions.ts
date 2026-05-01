@@ -1,12 +1,11 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import { and, eq, max } from "drizzle-orm";
 
 import { unlistedSlug } from "@/lib/slug";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { playlistItems, playlists } from "@/server/db/schema/playlists";
 
@@ -17,7 +16,7 @@ export async function createPlaylist(input: {
     description: string;
     privacy: PlaylistPrivacy;
 }): Promise<{ id: string; title: string } | { error: string }> {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session?.user) return { error: "Not authenticated." };
 
     const slug = input.privacy === "unlisted" ? unlistedSlug() : null;
@@ -41,7 +40,7 @@ export async function createPlaylist(input: {
 }
 
 export async function removePlaylistItem(itemId: string): Promise<{ ok: boolean; error?: string }> {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session?.user) return { ok: false, error: "Not authenticated." };
 
     // Verify ownership via join.
@@ -63,7 +62,7 @@ export async function reorderPlaylistItems(
     playlistId: string,
     itemIds: string[],
 ): Promise<{ ok: boolean; error?: string }> {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session?.user) return { ok: false, error: "Not authenticated." };
 
     const playlist = await db
@@ -98,7 +97,7 @@ export async function reorderPlaylistItems(
 }
 
 export async function addToWatchLater(videoId: string): Promise<{ ok: boolean; error?: string }> {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session?.user) return { ok: false, error: "Not authenticated." };
 
     // Find or create the watch_later system playlist.

@@ -1,9 +1,8 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import AppShell from "@/components/shell/AppShell";
 import { HistoryPageClient } from "./HistoryPageClient";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channels } from "@/server/db/schema/channels";
 import { watchHistory } from "@/server/db/schema/history";
@@ -14,7 +13,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Watch History" };
 
 const HistoryPage = async () => {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session?.user) {
         redirect("/login");
     }
