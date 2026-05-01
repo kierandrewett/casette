@@ -17,10 +17,14 @@ export type ParsedMultipart = {
     file: FileInfo;
     /** Each extra caption file, collected in memory as a buffer. */
     captions: Array<{ filename: string; mimeType: string; data: Buffer }>;
+    /** yt-dlp sidecar(s) — `info[]` field. Usually exactly one .info.json. */
+    info: Array<{ filename: string; mimeType: string; data: Buffer }>;
 };
 
 const MAX_FIELD_SIZE = 12_000; // bytes; covers title + description + privacy + channelId
 const MAX_CAPTION_SIZE = 2_000_000; // 2 MB per caption sidecar
+// .info.json files from yt-dlp sit around 50–500 KB; cap generously at 1 MB.
+const MAX_INFO_SIZE = 1_000_000;
 
 export type MultipartOptions = {
     /** Max total bytes the file field may produce; caller sends 413 on rejection. */
@@ -54,7 +58,9 @@ export const parseMultipart = (req: IncomingMessage, options: MultipartOptions):
         let fileInfo: FileInfo | null = null;
         let fileOversize = false;
         const captions: ParsedMultipart["captions"] = [];
+        const infoFiles: ParsedMultipart["info"] = [];
         let captionError: Error | null = null;
+        let infoError: Error | null = null;
         let fileCount = 0;
         let pending = 0; // count of in-flight async operations
 
@@ -62,6 +68,10 @@ export const parseMultipart = (req: IncomingMessage, options: MultipartOptions):
             if (pending !== 0) return; // wait until all streams finish
             if (captionError) {
                 reject(captionError);
+                return;
+            }
+            if (infoError) {
+                reject(infoError);
                 return;
             }
             if (fileOversize) {
@@ -72,7 +82,7 @@ export const parseMultipart = (req: IncomingMessage, options: MultipartOptions):
                 reject(new Error("no file field in multipart body"));
                 return;
             }
-            resolve({ fields, file: fileInfo, captions });
+            resolve({ fields, file: fileInfo, captions, info: infoFiles });
         };
 
         bb.on("field", (name, value, info) => {
@@ -123,6 +133,34 @@ export const parseMultipart = (req: IncomingMessage, options: MultipartOptions):
                 });
 
                 options.fileTarget.on("error", (err) => {
+                    pending--;
+                    reject(err);
+                });
+            } else if (name === "info[]" || name === "info") {
+                // yt-dlp .info.json sidecar — small JSON, buffer in memory.
+                const chunks: Buffer[] = [];
+                let infoBytes = 0;
+                pending++;
+
+                stream.on("data", (chunk: Buffer) => {
+                    infoBytes += chunk.length;
+                    if (infoBytes > MAX_INFO_SIZE) {
+                        infoError = new Error(`info file '${filename}' exceeds ${MAX_INFO_SIZE} bytes`);
+                        stream.resume();
+                        return;
+                    }
+                    chunks.push(chunk);
+                });
+
+                stream.on("end", () => {
+                    if (!infoError) {
+                        infoFiles.push({ filename, mimeType, data: Buffer.concat(chunks) });
+                    }
+                    pending--;
+                    done();
+                });
+
+                stream.on("error", (err) => {
                     pending--;
                     reject(err);
                 });

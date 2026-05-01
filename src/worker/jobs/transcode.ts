@@ -233,24 +233,35 @@ const runPipeline = async (videoId: string): Promise<void> => {
     // ---- 7. chapters (92%) ----
     await updateProgress(videoId, "chapters");
 
-    const descChapters = parseDescriptionChapters(video.description);
-    const contChapters = containerChapters(meta.chapters);
-    const merged = mergeChapters(contChapters, descChapters);
-    const finalChapters = withEndSec(merged, meta.durationSec);
+    // Sidecar-supplied chapters (yt-dlp .info.json) are inserted at upload
+    // time so they win over both description and container parses. If we
+    // see any pre-existing rows, leave them alone.
+    const existing = await db
+        .select({ id: videoChapters.id })
+        .from(videoChapters)
+        .where(eq(videoChapters.videoId, videoId))
+        .limit(1);
 
-    if (finalChapters.length > 0) {
-        await db
-            .insert(videoChapters)
-            .values(
-                finalChapters.map((c) => ({
-                    videoId,
-                    startSec: c.startSec,
-                    endSec: c.endSec,
-                    title: c.title,
-                    source: c.source,
-                })),
-            )
-            .onConflictDoNothing();
+    if (existing.length === 0) {
+        const descChapters = parseDescriptionChapters(video.description);
+        const contChapters = containerChapters(meta.chapters);
+        const merged = mergeChapters(contChapters, descChapters);
+        const finalChapters = withEndSec(merged, meta.durationSec);
+
+        if (finalChapters.length > 0) {
+            await db
+                .insert(videoChapters)
+                .values(
+                    finalChapters.map((c) => ({
+                        videoId,
+                        startSec: c.startSec,
+                        endSec: c.endSec,
+                        title: c.title,
+                        source: c.source,
+                    })),
+                )
+                .onConflictDoNothing();
+        }
     }
 
     // ---- 8. finalise (100%) ----
