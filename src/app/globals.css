@@ -235,21 +235,19 @@
         display: none;
     }
 
-    /* Standard scrollbar styling so dark surfaces look intentional. */
-    ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-    }
-    ::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-        background-color: rgba(255, 255, 255, 0.12);
-        border-radius: 8px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(255, 255, 255, 0.2);
-    }
+}
+
+/* color-scheme is what tells the browser to draw native scrollbars in
+   the right palette (and to pick the right form/button defaults). Without
+   this, dark-mode users get bright-white scrollbars and dark default
+   form chrome, which reads as "weird". We let the browser draw its own
+   scrollbar instead of overriding with custom rules — that way the
+   appearance matches the user's OS/browser convention. */
+:root {
+    color-scheme: light;
+}
+html.dark {
+    color-scheme: dark;
 }
 
 /* ---------------------------------------------------------------------------
