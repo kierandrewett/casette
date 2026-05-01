@@ -1,4 +1,5 @@
 // Re-exports for all domain routers. Import from here in root.ts.
+export { accountRouter } from "./account";
 export { adminRouter } from "./admin";
 export { channelRouter } from "./channel";
 export { commentRouter } from "./comment";

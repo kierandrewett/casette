@@ -5,6 +5,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { env } from "@/env";
+import { sendMail } from "@/lib/mail";
 import { db } from "@/server/db/client";
 import { account, session, user, verification } from "@/server/db/schema/auth";
 import { apiKeys, channels, type Channel } from "@/server/db/schema/channels";
@@ -33,6 +34,14 @@ export const auth = betterAuth({
         requireEmailVerification: false,
         minPasswordLength: 8,
         autoSignIn: true,
+        sendResetPassword: async ({ user: recipient, url }: { user: { email: string; name: string }; url: string }) => {
+            await sendMail({
+                to: recipient.email,
+                subject: "Reset your cassette password",
+                text: `Hi ${recipient.name},\n\nClick the link below to reset your cassette password.\nThis link expires in 1 hour.\n\n${url}\n\nIf you did not request a password reset you can safely ignore this email.`,
+                html: `<p>Hi ${recipient.name},</p><p>Click the link below to reset your cassette password. This link expires in 1&nbsp;hour.</p><p><a href="${url}">${url}</a></p><p>If you did not request a password reset you can safely ignore this email.</p>`,
+            });
+        },
     },
     session: {
         expiresIn: 60 * 60 * 24 * 30,

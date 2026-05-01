@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -12,13 +11,12 @@ import { cn } from "@/lib/utils";
 
 const schema = z.object({
     email: z.string().email("Enter a valid email address."),
-    password: z.string().min(1, "Password is required."),
 });
 
 type FormValues = z.infer<typeof schema>;
 
-export const AuthLoginForm = () => {
-    const router = useRouter();
+export const ForgotPasswordForm = () => {
+    const [submitted, setSubmitted] = useState(false);
     const [serverError, setServerError] = useState<string | null>(null);
 
     const {
@@ -32,25 +30,48 @@ export const AuthLoginForm = () => {
     const onSubmit = async (values: FormValues) => {
         setServerError(null);
 
-        const result = await authClient.signIn.email({
+        const result = await authClient.requestPasswordReset({
             email: values.email,
-            password: values.password,
+            redirectTo: "/reset-password",
         });
 
         if (result.error) {
-            setServerError(result.error.message ?? "Sign-in failed. Please try again.");
+            // Surface unexpected errors but keep the generic success message
+            // for not-found cases to avoid leaking account existence.
+            setServerError(result.error.message ?? "Something went wrong. Please try again.");
             return;
         }
 
-        router.push("/studio");
-        router.refresh();
+        setSubmitted(true);
     };
+
+    if (submitted) {
+        return (
+            <div className="w-full max-w-sm space-y-6">
+                <div className="space-y-1 text-center">
+                    <h1 className="text-2xl font-semibold tracking-tight">Check your inbox</h1>
+                    <p className="text-sm text-muted-foreground">
+                        If that account exists, we&apos;ve sent a reset link. Check your email and follow
+                        the instructions. The link expires in 1&nbsp;hour.
+                    </p>
+                </div>
+                <p className="text-center text-sm text-muted-foreground">
+                    <a href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+                        Back to sign in
+                    </a>
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="w-full max-w-sm space-y-6">
             <div className="space-y-1 text-center">
-                <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-                <p className="text-sm text-muted-foreground">Enter your email and password to continue.</p>
+                <h1 className="text-2xl font-semibold tracking-tight">Forgot password?</h1>
+                <p className="text-sm text-muted-foreground">
+                    Enter the email address associated with your account and we&apos;ll send you a reset
+                    link.
+                </p>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
@@ -74,34 +95,6 @@ export const AuthLoginForm = () => {
                     {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
                 </div>
 
-                {/* Password */}
-                <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                        <label htmlFor="password" className="text-sm font-medium leading-none">
-                            Password
-                        </label>
-                        <a
-                            href="/forgot-password"
-                            className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-                        >
-                            Forgot password?
-                        </a>
-                    </div>
-                    <input
-                        id="password"
-                        type="password"
-                        autoComplete="current-password"
-                        placeholder="••••••••"
-                        {...register("password")}
-                        className={cn(
-                            "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
-                            "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                            errors.password && "border-destructive focus-visible:ring-destructive",
-                        )}
-                    />
-                    {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-                </div>
-
                 {/* Server error */}
                 {serverError && (
                     <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -119,14 +112,13 @@ export const AuthLoginForm = () => {
                         "disabled:pointer-events-none disabled:opacity-50",
                     )}
                 >
-                    {isSubmitting ? "Signing in…" : "Sign in"}
+                    {isSubmitting ? "Sending…" : "Send reset link"}
                 </button>
             </form>
 
             <p className="text-center text-sm text-muted-foreground">
-                No account?{" "}
-                <a href="/register" className="font-medium text-foreground underline-offset-4 hover:underline">
-                    Create one
+                <a href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+                    Back to sign in
                 </a>
             </p>
         </div>

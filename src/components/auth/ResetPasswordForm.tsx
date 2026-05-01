@@ -10,14 +10,23 @@ import { z } from "zod";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
-const schema = z.object({
-    email: z.string().email("Enter a valid email address."),
-    password: z.string().min(1, "Password is required."),
-});
+const schema = z
+    .object({
+        newPassword: z.string().min(8, "Password must be at least 8 characters.").max(128),
+        confirmPassword: z.string().min(1, "Please confirm your password."),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+        message: "Passwords do not match.",
+        path: ["confirmPassword"],
+    });
 
 type FormValues = z.infer<typeof schema>;
 
-export const AuthLoginForm = () => {
+type Props = {
+    token: string;
+};
+
+export const ResetPasswordForm = ({ token }: Props) => {
     const router = useRouter();
     const [serverError, setServerError] = useState<string | null>(null);
 
@@ -32,74 +41,69 @@ export const AuthLoginForm = () => {
     const onSubmit = async (values: FormValues) => {
         setServerError(null);
 
-        const result = await authClient.signIn.email({
-            email: values.email,
-            password: values.password,
+        const result = await authClient.resetPassword({
+            newPassword: values.newPassword,
+            token,
         });
 
         if (result.error) {
-            setServerError(result.error.message ?? "Sign-in failed. Please try again.");
+            setServerError(result.error.message ?? "Password reset failed. The link may have expired.");
             return;
         }
 
-        router.push("/studio");
-        router.refresh();
+        router.push("/login");
     };
 
     return (
         <div className="w-full max-w-sm space-y-6">
             <div className="space-y-1 text-center">
-                <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-                <p className="text-sm text-muted-foreground">Enter your email and password to continue.</p>
+                <h1 className="text-2xl font-semibold tracking-tight">Reset password</h1>
+                <p className="text-sm text-muted-foreground">Choose a new password for your account.</p>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-                {/* Email */}
+                {/* New password */}
                 <div className="space-y-1.5">
-                    <label htmlFor="email" className="text-sm font-medium leading-none">
-                        Email
+                    <label htmlFor="newPassword" className="text-sm font-medium leading-none">
+                        New password
                     </label>
                     <input
-                        id="email"
-                        type="email"
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                        {...register("email")}
+                        id="newPassword"
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="••••••••"
+                        {...register("newPassword")}
                         className={cn(
                             "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
                             "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                            errors.email && "border-destructive focus-visible:ring-destructive",
+                            errors.newPassword && "border-destructive focus-visible:ring-destructive",
                         )}
                     />
-                    {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+                    {errors.newPassword && (
+                        <p className="text-xs text-destructive">{errors.newPassword.message}</p>
+                    )}
                 </div>
 
-                {/* Password */}
+                {/* Confirm password */}
                 <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                        <label htmlFor="password" className="text-sm font-medium leading-none">
-                            Password
-                        </label>
-                        <a
-                            href="/forgot-password"
-                            className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-                        >
-                            Forgot password?
-                        </a>
-                    </div>
+                    <label htmlFor="confirmPassword" className="text-sm font-medium leading-none">
+                        Confirm password
+                    </label>
                     <input
-                        id="password"
+                        id="confirmPassword"
                         type="password"
-                        autoComplete="current-password"
+                        autoComplete="new-password"
                         placeholder="••••••••"
-                        {...register("password")}
+                        {...register("confirmPassword")}
                         className={cn(
                             "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
                             "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                            errors.password && "border-destructive focus-visible:ring-destructive",
+                            errors.confirmPassword && "border-destructive focus-visible:ring-destructive",
                         )}
                     />
-                    {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+                    {errors.confirmPassword && (
+                        <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+                    )}
                 </div>
 
                 {/* Server error */}
@@ -119,16 +123,9 @@ export const AuthLoginForm = () => {
                         "disabled:pointer-events-none disabled:opacity-50",
                     )}
                 >
-                    {isSubmitting ? "Signing in…" : "Sign in"}
+                    {isSubmitting ? "Resetting…" : "Reset password"}
                 </button>
             </form>
-
-            <p className="text-center text-sm text-muted-foreground">
-                No account?{" "}
-                <a href="/register" className="font-medium text-foreground underline-offset-4 hover:underline">
-                    Create one
-                </a>
-            </p>
         </div>
     );
 };

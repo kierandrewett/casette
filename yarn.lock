@@ -2602,6 +2602,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/nodemailer@npm:^8":
+  version: 8.0.0
+  resolution: "@types/nodemailer@npm:8.0.0"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/e5031df5d6557f4cdb9a0dbe1a96f3f54dc59c23d47477103fd42b5c9bc925ea1b4e51be560af5620b4d0c66fcfb015ce5ca8f914ed2f3a3086be6149d5932da
+  languageName: node
+  linkType: hard
+
 "@types/pg@npm:^8.11.10":
   version: 8.20.0
   resolution: "@types/pg@npm:8.20.0"
@@ -3537,6 +3546,7 @@ __metadata:
     "@trpc/server": "npm:11.0.0-rc.660"
     "@types/busboy": "npm:^1.5.4"
     "@types/node": "npm:^22.10.5"
+    "@types/nodemailer": "npm:^8"
     "@types/pg": "npm:^8.11.10"
     "@types/react": "npm:^19.0.3"
     "@types/react-dom": "npm:^19.0.2"
@@ -3555,6 +3565,7 @@ __metadata:
     nanoid: "npm:^5.0.9"
     next: "npm:^15.1.4"
     next-themes: "npm:^0.4.4"
+    nodemailer: "npm:^8.0.7"
     pg: "npm:^8.13.1"
     pg-boss: "npm:^10.1.6"
     postcss: "npm:^8.4.49"
@@ -5970,6 +5981,13 @@ __metadata:
   version: 2.0.38
   resolution: "node-releases@npm:2.0.38"
   checksum: 10c0/db9909234ed750c5b9d0075f83214cd16b76370b54eab50e3554f3ba939ba7ac39f3aca2ddf93471ae8553dbde2ea9354b0ae380c9cff1f8e53b55e414903413
+  languageName: node
+  linkType: hard
+
+"nodemailer@npm:^8.0.7":
+  version: 8.0.7
+  resolution: "nodemailer@npm:8.0.7"
+  checksum: 10c0/f1580263ad7fba64a493c47c4d78f06679c0da9cc3becbe6b628311a16474c07286fc4e530006ea262537594ccc475dc569fd519275222fd01f99c315976aeac
   languageName: node
   linkType: hard
 

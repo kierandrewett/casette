@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 
 import { auth } from "@/lib/auth";
 import AppShell from "@/components/shell/AppShell";
+import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { SessionsPanel } from "@/components/settings/SessionsPanel";
 import { SignOutButton } from "./SettingsClient";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -51,6 +53,24 @@ export default async function SettingsPage() {
                         <code className="font-mono text-[11px]">prefers-color-scheme</code> media query,
                         but no light theme is available.
                     </p>
+                </section>
+
+                {/* Password section */}
+                <section className="space-y-4">
+                    <h2 className="text-base font-semibold text-foreground/80 uppercase tracking-wider">
+                        Password
+                    </h2>
+                    <div className="rounded-xl border border-border bg-card px-4 py-4">
+                        <ChangePasswordForm />
+                    </div>
+                </section>
+
+                {/* Sessions section */}
+                <section className="space-y-4">
+                    <h2 className="text-base font-semibold text-foreground/80 uppercase tracking-wider">
+                        Active Sessions
+                    </h2>
+                    <SessionsPanel />
                 </section>
 
                 {/* Sign out */}

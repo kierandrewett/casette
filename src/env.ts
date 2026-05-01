@@ -24,6 +24,13 @@ const serverSchema = z.object({
     // address like "admin@local" so first boot works on a fresh box.
     ADMIN_EMAIL: z.string().min(3).optional(),
     ADMIN_PASSWORD: z.string().min(8).optional(),
+    // SMTP_URL is optional. When set, transactional email (e.g. password reset)
+    // is delivered via nodemailer. Format: smtp[s]://user:pass@host:port
+    // When absent, the would-be-sent payload is logged at info level so an
+    // operator can copy-paste the reset URL from `docker compose logs`.
+    SMTP_URL: z.string().url().optional(),
+    // MAIL_FROM is the sender address used in transactional email.
+    MAIL_FROM: z.string().email().optional(),
 });
 
 const clientSchema = z.object({
@@ -44,6 +51,8 @@ const parsed = serverSchema.safeParse({
     ENABLE_NVENC: process.env.ENABLE_NVENC,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+    SMTP_URL: process.env.SMTP_URL,
+    MAIL_FROM: process.env.MAIL_FROM,
 });
 
 if (!parsed.success) {
