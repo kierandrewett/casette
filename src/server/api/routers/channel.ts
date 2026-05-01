@@ -37,6 +37,20 @@ const updateChannelInput = z.object({
     pinnedVideoId: z.string().uuid().nullable().optional(),
     // Hold all new comments for moderation when true.
     moderateComments: z.boolean().optional(),
+    // ISO 3166-1 alpha-2 country code, or null to clear. Two-letter, upper
+    // or lower case — the server normalises to upper. The studio About-tab
+    // ships a curated subset; this column accepts any valid 2-letter code
+    // so admins can backfill via raw SQL if needed.
+    country: z
+        .string()
+        .trim()
+        .length(2)
+        .nullable()
+        .optional()
+        .transform((v) => (v ? v.toUpperCase() : v)),
+    // Whether the public channel page lands on a "Home" tab (curated
+    // shelves + trailer hero) or jumps straight to the videos list.
+    homeEnabled: z.boolean().optional(),
 });
 
 const generateApiKeyInput = z.object({
@@ -172,6 +186,8 @@ export const channelRouter = createTRPCRouter({
             if (updates.avatarPath !== undefined) patch.avatarPath = updates.avatarPath;
             if (updates.bannerPath !== undefined) patch.bannerPath = updates.bannerPath;
             if (updates.moderateComments !== undefined) patch.moderateComments = updates.moderateComments;
+            if (updates.country !== undefined) patch.country = updates.country;
+            if (updates.homeEnabled !== undefined) patch.homeEnabled = updates.homeEnabled;
 
             // pinnedVideoId: null clears, otherwise validate that the video
             // belongs to this channel and is publicly visible. We deliberately

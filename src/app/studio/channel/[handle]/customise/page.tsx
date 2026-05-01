@@ -4,6 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { ChannelCustomiseForm } from "@/components/studio/ChannelCustomiseForm";
 import { QuotaPanel } from "@/components/studio/QuotaPanel";
+import { StudioPageHeader } from "@/components/studio/StudioPageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/server";
 import { db } from "@/server/db/client";
@@ -51,21 +52,27 @@ const CustomiseChannelPage = async ({ params }: Props) => {
     const avatarUrl = channel.avatarPath ? `/api/channel/${channel.id}/asset/avatar` : null;
     const bannerUrl = channel.bannerPath ? `/api/channel/${channel.id}/asset/banner` : null;
 
-    // Channel-trailer + moderation flag come from the row directly (the
-    // public byHandle procedure intentionally omits them).
+    // Channel-trailer + moderation flag + country + homeEnabled come from the
+    // row directly (the public byHandle procedure intentionally omits them).
     const extraRows = await db
         .select({
             pinnedVideoId: channelsTable.pinnedVideoId,
             moderateComments: channelsTable.moderateComments,
+            country: channelsTable.country,
+            homeEnabled: channelsTable.homeEnabled,
         })
         .from(channelsTable)
         .where(eq(channelsTable.id, channel.id))
         .limit(1);
-    const extra = extraRows[0] ?? { pinnedVideoId: null, moderateComments: false };
+    const extra = extraRows[0] ?? {
+        pinnedVideoId: null,
+        moderateComments: false,
+        country: null,
+        homeEnabled: false,
+    };
 
-    // Eligible trailers: this channel's public+ready+non-draft videos. We
-    // cap at the 50 most recent so the dropdown stays reasonable; channels
-    // with hundreds of videos will need a search-driven picker eventually.
+    // Eligible trailers: this channel's public+ready+non-draft videos. Cap
+    // at the 50 most recent so the dropdown stays reasonable.
     const eligibleTrailers = await db
         .select({ id: videos.id, title: videos.title })
         .from(videos)
@@ -81,7 +88,7 @@ const CustomiseChannelPage = async ({ params }: Props) => {
         .limit(50)
         .catch(() => []);
 
-    // Load usage / quota data (best-effort — silently omit if it fails).
+    // Load usage / quota data (best-effort).
     let usageData: { used: number; quota: number | null; autoPruneDays: number | null } | null = null;
     if (membership.role === "owner") {
         try {
@@ -91,58 +98,49 @@ const CustomiseChannelPage = async ({ params }: Props) => {
         }
     }
 
-    return (
-        <div className="mx-auto max-w-3xl space-y-6">
-            <header>
-                <h1 className="text-2xl font-semibold tracking-tight">Customise channel</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Update your channel&apos;s avatar, banner, name, and description.
-                </p>
-            </header>
-
+    const storageSlot =
+        membership.role === "owner" && usageData ? (
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Branding &amp; description</CardTitle>
+                    <CardTitle className="text-base">Storage &amp; retention</CardTitle>
                     <CardDescription>
-                        These appear on your public channel page and in cards across the site.
+                        Optional disk quota and auto-prune window. Auto-prune runs nightly; raw sources older than the
+                        threshold are removed while HLS variants and metadata stay.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <ChannelCustomiseForm
+                    <QuotaPanel
                         channelId={channel.id}
-                        handle={channel.handle}
-                        initialName={channel.name}
-                        initialDescription={channel.description}
-                        avatarUrl={avatarUrl}
-                        bannerUrl={bannerUrl}
-                        initialPinnedVideoId={extra.pinnedVideoId ?? null}
-                        initialModerateComments={!!extra.moderateComments}
-                        eligibleTrailers={eligibleTrailers}
+                        initialUsed={usageData.used}
+                        initialQuota={usageData.quota}
+                        initialAutoPruneDays={usageData.autoPruneDays}
                     />
                 </CardContent>
             </Card>
+        ) : null;
 
-            {/* Quota + auto-prune — owner only */}
-            {membership.role === "owner" && usageData && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base">Storage &amp; retention</CardTitle>
-                        <CardDescription>
-                            Optional disk quota and auto-prune window for older uploads. Auto-prune runs nightly; raw
-                            sources older than the threshold are removed while HLS variants and metadata stay.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <QuotaPanel
-                            channelId={channel.id}
-                            initialUsed={usageData.used}
-                            initialQuota={usageData.quota}
-                            initialAutoPruneDays={usageData.autoPruneDays}
-                        />
-                    </CardContent>
-                </Card>
-            )}
-        </div>
+    return (
+        <>
+            <StudioPageHeader
+                title="Customise channel"
+                description="Update branding, channel details, the trailer pinned to your home tab, moderation, and storage. Edits are previewed live on the right."
+            />
+
+            <ChannelCustomiseForm
+                channelId={channel.id}
+                handle={channel.handle}
+                initialName={channel.name}
+                initialDescription={channel.description}
+                avatarUrl={avatarUrl}
+                bannerUrl={bannerUrl}
+                initialPinnedVideoId={extra.pinnedVideoId ?? null}
+                initialModerateComments={!!extra.moderateComments}
+                initialCountry={extra.country ?? null}
+                initialHomeEnabled={!!extra.homeEnabled}
+                eligibleTrailers={eligibleTrailers}
+                storageSlot={storageSlot}
+            />
+        </>
     );
 };
 
