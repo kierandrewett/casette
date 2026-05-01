@@ -75,7 +75,25 @@ const nextConfig = {
     },
     // Required so Drizzle's pg dialect and pg-boss are not pulled into
     // the edge bundle. Both pin to Node-only APIs.
-    serverExternalPackages: ["pg", "pg-boss", "pg-connection-string", "pgpass", "postgres", "busboy"],
+    serverExternalPackages: [
+        "pg",
+        "pg-boss",
+        "pg-connection-string",
+        "pg-native",
+        "pgpass",
+        "postgres",
+        "busboy",
+        "nodemailer",
+    ],
+
+    // Turbopack handles Node externals natively via serverExternalPackages
+    // above; this empty block exists so Next does not warn that webpack is
+    // configured while Turbopack is not. When the webpack-only externals
+    // shim below is no longer needed (i.e. once Turbopack ships full build
+    // support and we drop the webpack(...) function), this block can stay
+    // as the canonical place to add Turbopack-specific resolve aliases or
+    // loader rules.
+    turbopack: {},
 
     async headers() {
         return [
