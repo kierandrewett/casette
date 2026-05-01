@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { BulkUploadForm } from "@/components/studio/BulkUploadForm";
+import { StudioPageHeader } from "@/components/studio/StudioPageHeader";
 import { StudioUploadForm } from "@/components/studio/StudioUploadForm";
 import { UploadPageTabs } from "@/components/studio/UploadPageTabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,32 +35,39 @@ const StudioUploadPage = async ({ params }: Props) => {
     const channelInfo = { id: membership.id, handle: membership.handle };
 
     return (
-        <div className="mx-auto max-w-3xl">
-            <header className="mb-6">
-                <h1 className="text-2xl font-semibold tracking-tight">Upload video</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Add a new video to <span className="font-medium text-foreground">@{membership.handle}</span>. We
-                    accept MP4, WebM, and MKV; transcoding to an HLS ladder happens automatically once the upload
-                    finishes.
-                </p>
-            </header>
+        <>
+            <StudioPageHeader
+                title="Upload video"
+                description={
+                    <>
+                        Add a new video to <span className="font-medium text-foreground">@{membership.handle}</span>. We
+                        accept MP4, WebM, and MKV; transcoding to an HLS ladder happens automatically once the upload
+                        finishes.
+                    </>
+                }
+            />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Source &amp; metadata</CardTitle>
-                    <CardDescription>
-                        Drop your file in below, then add a title, description, and tags. You can switch to{" "}
-                        <span className="font-medium text-foreground">Bulk</span> to upload multiple files at once.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <UploadPageTabs
-                        singleForm={<StudioUploadForm channel={channelInfo} />}
-                        bulkForm={<BulkUploadForm channel={channelInfo} />}
-                    />
-                </CardContent>
-            </Card>
-        </div>
+            {/* Upload form caps at a comfortable reading width inside the wide
+                canvas — the upload form's content (drop zone + metadata) reads
+                better in a single column than fanned across the full row. */}
+            <div className="max-w-4xl">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Source &amp; metadata</CardTitle>
+                        <CardDescription>
+                            Drop your file in below, then add a title, description, and tags. Switch to{" "}
+                            <span className="font-medium text-foreground">Bulk</span> to upload multiple files at once.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <UploadPageTabs
+                            singleForm={<StudioUploadForm channel={channelInfo} />}
+                            bulkForm={<BulkUploadForm channel={channelInfo} />}
+                        />
+                    </CardContent>
+                </Card>
+            </div>
+        </>
     );
 };
 

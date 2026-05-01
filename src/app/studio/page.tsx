@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { UserMultipleIcon } from "hugeicons-react";
 
 import { CreateChannelCard } from "@/components/studio/CreateChannelCard";
+import { StudioEmptyState } from "@/components/studio/StudioEmptyState";
+import { StudioPageHeader } from "@/components/studio/StudioPageHeader";
 import { StudioSubNav, type StudioChannel } from "@/components/studio/StudioSubNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { trpc } from "@/lib/trpc/server";
@@ -32,35 +35,32 @@ const StudioPage = async () => {
         <>
             <StudioSubNav channels={channels} />
 
-            <div className="pt-6">
-                <header className="mb-8">
-                    <h1 className="text-3xl font-semibold tracking-tight">Studio</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        Manage your channels, uploads, and analytics in one place.
-                    </p>
-                </header>
+            <div className="mx-auto max-w-7xl pt-6 md:pt-8">
+                <StudioPageHeader
+                    title="Studio"
+                    description="Manage your channels, uploads, and analytics in one place."
+                    actions={
+                        <Link
+                            href="/account/channels"
+                            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-card px-4 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
+                        >
+                            New channel
+                        </Link>
+                    }
+                />
 
                 {memberships.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-card/40 px-6 py-16 text-center">
-                        <p className="max-w-md text-sm text-muted-foreground">
-                            You don&apos;t have any channels yet. Create one to start uploading videos.
-                        </p>
-                        <CreateChannelCard />
-                    </div>
+                    <StudioEmptyState
+                        icon={UserMultipleIcon}
+                        title="No channels yet"
+                        description="Create a channel to start uploading videos and customise your public page."
+                    />
                 ) : (
                     <section className="space-y-4">
-                        <div className="flex items-baseline justify-between">
-                            <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-                                Your channels
-                            </h2>
-                            <Link
-                                href="/account/channels"
-                                className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                            >
-                                + New channel
-                            </Link>
-                        </div>
-                        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Your channels
+                        </h2>
+                        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                             {memberships.map((channel) => {
                                 const avatarUrl = channel.avatarPath ? `/api/channel/${channel.id}/asset/avatar` : null;
                                 return (
@@ -89,6 +89,12 @@ const StudioPage = async () => {
                                 );
                             })}
                         </ul>
+
+                        {/* Inline CreateChannelCard tucked at the bottom for users
+                            who want to start another channel without leaving Studio. */}
+                        <div className="pt-2">
+                            <CreateChannelCard />
+                        </div>
                     </section>
                 )}
             </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { StudioPageHeader } from "@/components/studio/StudioPageHeader";
 import { WebhooksPanel } from "@/components/studio/WebhooksPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/server";
@@ -29,34 +30,32 @@ const WebhooksPage = async ({ params }: Props) => {
         notFound();
     }
 
-    // Only owners and managers may manage webhooks.
     if (membership.role !== "owner" && membership.role !== "manager") {
         notFound();
     }
 
     return (
-        <div className="mx-auto max-w-3xl">
-            <header className="mb-6">
-                <h1 className="text-2xl font-semibold tracking-tight">Webhooks</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Receive signed HTTP notifications for transcode and comment events. Each webhook&apos;s secret is
-                    revealed once at mint time and used to verify request signatures.
-                </p>
-            </header>
+        <>
+            <StudioPageHeader
+                title="Webhooks"
+                description="Receive signed HTTP notifications for transcode and comment events. Each webhook's secret is revealed once at mint time and used to verify request signatures."
+            />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Endpoints</CardTitle>
-                    <CardDescription>
-                        Add an HTTPS endpoint, choose which events to subscribe to, and send a test payload to verify
-                        delivery.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <WebhooksPanel channelId={membership.id} />
-                </CardContent>
-            </Card>
-        </div>
+            <div className="max-w-5xl">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Endpoints</CardTitle>
+                        <CardDescription>
+                            Add an HTTPS endpoint, choose which events to subscribe to, and send a test payload to
+                            verify delivery.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <WebhooksPanel channelId={membership.id} />
+                    </CardContent>
+                </Card>
+            </div>
+        </>
     );
 };
 

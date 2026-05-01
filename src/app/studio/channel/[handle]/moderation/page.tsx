@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ModerationQueue } from "@/components/studio/ModerationQueue";
+import { StudioPageHeader } from "@/components/studio/StudioPageHeader";
 import { trpc } from "@/lib/trpc/server";
 
 type Props = {
@@ -39,25 +39,16 @@ const ModerationPage = async ({ params }: Props) => {
         .catch(() => [] as Awaited<ReturnType<typeof trpc.comment.listPending>>);
 
     return (
-        <main className="mx-auto max-w-4xl px-4 py-10">
-            <div className="mb-8 flex items-center gap-4">
-                <Link
-                    href={`/studio/channel/${handle}`}
-                    className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-                >
-                    &#8592; Studio
-                </Link>
-            </div>
+        <>
+            <StudioPageHeader
+                title="Comment moderation"
+                description="Review comments held for moderation on your channel's videos."
+            />
 
-            <div className="mb-8">
-                <h1 className="text-2xl font-semibold tracking-tight">Comment moderation</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Review comments held for moderation on your channel&apos;s videos.
-                </p>
+            <div className="max-w-5xl">
+                <ModerationQueue channelId={membership.id} initialItems={initial} />
             </div>
-
-            <ModerationQueue channelId={membership.id} initialItems={initial} />
-        </main>
+        </>
     );
 };
 

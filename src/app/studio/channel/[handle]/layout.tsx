@@ -47,7 +47,10 @@ const StudioChannelLayout = async ({ children, params }: Props) => {
     return (
         <>
             <StudioSubNav channel={activeChannel} channels={channels} />
-            <div className="pt-6">{children}</div>
+            {/* Wide canvas. Studio pages live inside max-w-7xl by default;
+                pages that want a narrower form column override with their own
+                inner wrapper (e.g. the upload page caps the form at max-w-3xl). */}
+            <div className="mx-auto max-w-7xl pt-6 md:pt-8">{children}</div>
         </>
     );
 };

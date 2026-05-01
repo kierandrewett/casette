@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { StudioPageHeader } from "@/components/studio/StudioPageHeader";
 import { StudioVideoTable } from "@/components/studio/StudioVideoTable";
 import { trpc } from "@/lib/trpc/server";
 
@@ -32,13 +33,15 @@ const StudioVideosPage = async ({ params }: Props) => {
 
     return (
         <>
-            <header className="mb-4">
-                <h1 className="text-2xl font-semibold tracking-tight">Videos</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    All uploads across <span className="font-medium text-foreground">@{membership.handle}</span> —
-                    public, unlisted, and private.
-                </p>
-            </header>
+            <StudioPageHeader
+                title="Videos"
+                description={
+                    <>
+                        All uploads across <span className="font-medium text-foreground">@{membership.handle}</span> —
+                        public, unlisted, and private.
+                    </>
+                }
+            />
             <StudioVideoTable channelId={membership.id} channelHandle={membership.handle} videos={videos} />
         </>
     );
