@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Search01Icon, Cancel01Icon, PlaySquareIcon, UserMultipleIcon, LibraryIcon, Time04Icon } from "hugeicons-react";
+import { Search01Icon, Cancel01Icon, Time04Icon } from "hugeicons-react";
 
+import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { vanillaTrpc } from "@/lib/trpc/client";
-import { cn } from "@/lib/utils";
+import { cn, formatCount, formatDuration, formatRelativeTime } from "@/lib/utils";
 import { pushRecentSearch, readRecentSearches, removeRecentSearch, clearRecentSearches } from "@/lib/recent-searches";
 
 interface SearchAutocompleteProps {
@@ -18,34 +19,74 @@ interface SearchAutocompleteProps {
     onSelectRecent?: (query: string) => void;
 }
 
-type Suggestion = {
-    kind: "video" | "channel" | "playlist";
-    label: string;
+interface VideoSuggestion {
+    kind: "video";
+    sim: number;
     href: string;
+    id: string;
+    publicId: string | null;
+    title: string;
+    description: string;
+    thumbnailPath: string | null;
+    durationSec: number | null;
+    viewCount: number;
+    publishedAt: string | Date | null;
+    channelId: string;
+    channelName: string;
+    channelHandle: string;
+}
+interface ChannelSuggestion {
+    kind: "channel";
+    sim: number;
+    href: string;
+    id: string;
+    name: string;
+    handle: string;
+    avatarPath: string | null;
+    subscriberCount: number;
+    videoCount: number;
+}
+interface PlaylistSuggestion {
+    kind: "playlist";
+    sim: number;
+    href: string;
+    id: string;
+    title: string;
+    ownerName: string | null;
+    itemCount: number;
+}
+
+interface SuggestionResponse {
+    videos: VideoSuggestion[];
+    channels: ChannelSuggestion[];
+    playlists: PlaylistSuggestion[];
+}
+
+// Tiny inline highlighter — wraps every case-insensitive match of `query`
+// in the input string with a <mark> using the brand accent. Escapes regex
+// metacharacters so a query of "c++" doesn't blow up.
+const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const Highlight = ({ text, query }: { text: string; query: string }) => {
+    const trimmed = query.trim();
+    if (!trimmed || !text) return <>{text}</>;
+    const re = new RegExp(`(${escapeRegex(trimmed)})`, "gi");
+    const parts = text.split(re);
+    return (
+        <>
+            {parts.map((part, i) =>
+                i % 2 === 1 ? (
+                    <mark key={i} className="rounded-sm bg-primary/25 px-0.5 text-foreground">
+                        {part}
+                    </mark>
+                ) : (
+                    <span key={i}>{part}</span>
+                ),
+            )}
+        </>
+    );
 };
 
-// Fixed sub-heading per kind. We render groups in a stable order so the rows
-// don't reshuffle as the server's similarity ranking jitters.
-const KIND_HEADINGS: Record<Suggestion["kind"], string> = {
-    video: "Videos",
-    channel: "Channels",
-    playlist: "Playlists",
-};
-
-const KindIcon = ({ kind, className }: { kind: Suggestion["kind"]; className?: string }) => {
-    const props = { size: 16, strokeWidth: 1.6, className };
-    switch (kind) {
-        case "video":
-            return <PlaySquareIcon {...props} />;
-        case "channel":
-            return <UserMultipleIcon {...props} />;
-        case "playlist":
-            return <LibraryIcon {...props} />;
-    }
-};
-
-// Debounce helper — delays propagation of `value` until `delayMs` has elapsed
-// without further updates.
 const useDebounce = <T,>(value: T, delayMs: number): T => {
     const [debounced, setDebounced] = useState(value);
     useEffect(() => {
@@ -56,10 +97,9 @@ const useDebounce = <T,>(value: T, delayMs: number): T => {
 };
 
 interface PendingRow {
-    type: "recent" | "suggestion" | "search-for";
+    type: "recent" | "video" | "channel" | "playlist" | "search-for";
     label: string;
     href: string;
-    kind?: Suggestion["kind"];
 }
 
 export const SearchAutocomplete = ({ query, onClose, onSelectRecent }: SearchAutocompleteProps) => {
@@ -70,39 +110,27 @@ export const SearchAutocomplete = ({ query, onClose, onSelectRecent }: SearchAut
     const [recents, setRecents] = useState<string[]>([]);
     const listRef = useRef<HTMLDivElement>(null);
 
-    // Hydrate recent searches once on mount; localStorage is browser-only.
     useEffect(() => {
         setRecents(readRecentSearches());
     }, []);
 
-    const { data: suggestions = [] } = useQuery<Suggestion[]>({
+    const { data: suggestions } = useQuery<SuggestionResponse>({
         queryKey: ["search.autocomplete", debouncedQuery],
         queryFn: async () => {
-            if (debouncedQuery.length < 2) return [];
+            if (debouncedQuery.length < 2) return { videos: [], channels: [], playlists: [] };
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result = await (vanillaTrpc as any).search.autocomplete.query({ q: debouncedQuery });
-            return result as Suggestion[];
+            return result as SuggestionResponse;
         },
         enabled: debouncedQuery.length >= 2,
         staleTime: 30_000,
-        placeholderData: (prev: Suggestion[] | undefined) => prev,
+        placeholderData: (prev: SuggestionResponse | undefined) => prev,
     });
 
-    // Group suggestions by kind so we can render sub-headers between them.
-    const grouped = useMemo(() => {
-        const groups: Record<Suggestion["kind"], Suggestion[]> = {
-            video: [],
-            channel: [],
-            playlist: [],
-        };
-        for (const s of suggestions) {
-            groups[s.kind].push(s);
-        }
-        return groups;
-    }, [suggestions]);
+    const videos = suggestions?.videos ?? [];
+    const channels = suggestions?.channels ?? [];
+    const playlists = suggestions?.playlists ?? [];
 
-    // Flat list of focusable rows in render order. Drives arrow-key navigation
-    // without re-deriving indices from the DOM.
     const rows = useMemo<PendingRow[]>(() => {
         if (!trimmedQuery) {
             return recents.map((r) => ({
@@ -117,23 +145,18 @@ export const SearchAutocomplete = ({ query, onClose, onSelectRecent }: SearchAut
             label: trimmedQuery,
             href: `/search?q=${encodeURIComponent(trimmedQuery)}`,
         });
-        for (const kind of ["video", "channel", "playlist"] as const) {
-            for (const s of grouped[kind].slice(0, 8)) {
-                out.push({ type: "suggestion", label: s.label, href: s.href, kind });
-            }
-        }
+        videos.forEach((v) => out.push({ type: "video", label: v.title, href: v.href }));
+        channels.forEach((c) => out.push({ type: "channel", label: c.name, href: c.href }));
+        playlists.forEach((p) => out.push({ type: "playlist", label: p.title, href: p.href }));
         return out;
-    }, [trimmedQuery, recents, grouped]);
+    }, [trimmedQuery, recents, videos, channels, playlists]);
 
-    // Reset active index when the row set changes.
     useEffect(() => {
         setActiveIndex(-1);
     }, [rows.length, debouncedQuery]);
 
     const commitNavigation = useCallback(
         (row: PendingRow) => {
-            // Only the freeform "search for X" path counts as a recent search;
-            // direct suggestion clicks should not pollute the list.
             if (row.type === "search-for") {
                 setRecents(pushRecentSearch(row.label));
             }
@@ -168,7 +191,6 @@ export const SearchAutocomplete = ({ query, onClose, onSelectRecent }: SearchAut
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [handleKeyDown]);
 
-    // Empty state — no query, no recents.
     if (!trimmedQuery && recents.length === 0) {
         return <div className="px-3 py-3 text-sm text-muted-foreground">Start typing to search&hellip;</div>;
     }
@@ -176,8 +198,7 @@ export const SearchAutocomplete = ({ query, onClose, onSelectRecent }: SearchAut
     let rowIndex = 0;
 
     return (
-        <div ref={listRef} role="listbox" aria-label="Search suggestions" className="max-h-[60vh] overflow-y-auto py-1">
-            {/* Recents — only visible when the input is empty. */}
+        <div ref={listRef} role="listbox" aria-label="Search suggestions" className="max-h-[70vh] overflow-y-auto py-1">
             {!trimmedQuery && recents.length > 0 && (
                 <>
                     <div className="flex items-center justify-between px-3 pb-1 pt-1.5">
@@ -214,27 +235,15 @@ export const SearchAutocomplete = ({ query, onClose, onSelectRecent }: SearchAut
                 </>
             )}
 
-            {/* Active query — show "search for X" + grouped suggestions. */}
             {trimmedQuery && (
                 <>
                     {(() => {
                         const i = rowIndex++;
                         return (
-                            <SuggestionRow
+                            <SearchForRow
                                 key="search-for"
+                                query={trimmedQuery}
                                 href={`/search?q=${encodeURIComponent(trimmedQuery)}`}
-                                label={
-                                    <>
-                                        Search for <span className="font-semibold">&ldquo;{trimmedQuery}&rdquo;</span>
-                                    </>
-                                }
-                                Icon={
-                                    <Search01Icon
-                                        size={16}
-                                        strokeWidth={1.6}
-                                        className="shrink-0 text-muted-foreground"
-                                    />
-                                }
                                 active={i === activeIndex}
                                 onClick={() =>
                                     commitNavigation({
@@ -247,35 +256,53 @@ export const SearchAutocomplete = ({ query, onClose, onSelectRecent }: SearchAut
                         );
                     })()}
 
-                    {(["video", "channel", "playlist"] as const).map((kind) => {
-                        const list = grouped[kind].slice(0, 8);
-                        if (list.length === 0) return null;
+                    {videos.length > 0 && (
+                        <SectionHeader>Videos</SectionHeader>
+                    )}
+                    {videos.map((v) => {
+                        const i = rowIndex++;
                         return (
-                            <div key={kind} className="mt-1">
-                                <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                    {KIND_HEADINGS[kind]}
-                                </p>
-                                {list.map((s) => {
-                                    const i = rowIndex++;
-                                    return (
-                                        <SuggestionRow
-                                            key={`${kind}-${s.href}`}
-                                            href={s.href}
-                                            label={s.label}
-                                            Icon={<KindIcon kind={kind} className="shrink-0 text-muted-foreground" />}
-                                            active={i === activeIndex}
-                                            onClick={() =>
-                                                commitNavigation({
-                                                    type: "suggestion",
-                                                    label: s.label,
-                                                    href: s.href,
-                                                    kind,
-                                                })
-                                            }
-                                        />
-                                    );
-                                })}
-                            </div>
+                            <VideoRow
+                                key={`video-${v.id}`}
+                                video={v}
+                                query={trimmedQuery}
+                                active={i === activeIndex}
+                                onClick={() =>
+                                    commitNavigation({ type: "video", label: v.title, href: v.href })
+                                }
+                            />
+                        );
+                    })}
+
+                    {channels.length > 0 && <SectionHeader>Channels</SectionHeader>}
+                    {channels.map((c) => {
+                        const i = rowIndex++;
+                        return (
+                            <ChannelRow
+                                key={`channel-${c.id}`}
+                                channel={c}
+                                query={trimmedQuery}
+                                active={i === activeIndex}
+                                onClick={() =>
+                                    commitNavigation({ type: "channel", label: c.name, href: c.href })
+                                }
+                            />
+                        );
+                    })}
+
+                    {playlists.length > 0 && <SectionHeader>Playlists</SectionHeader>}
+                    {playlists.map((p) => {
+                        const i = rowIndex++;
+                        return (
+                            <PlaylistRow
+                                key={`playlist-${p.id}`}
+                                playlist={p}
+                                query={trimmedQuery}
+                                active={i === activeIndex}
+                                onClick={() =>
+                                    commitNavigation({ type: "playlist", label: p.title, href: p.href })
+                                }
+                            />
                         );
                     })}
                 </>
@@ -284,15 +311,20 @@ export const SearchAutocomplete = ({ query, onClose, onSelectRecent }: SearchAut
     );
 };
 
-interface SuggestionRowProps {
+const SectionHeader = ({ children }: { children: React.ReactNode }) => (
+    <p className="mt-1 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {children}
+    </p>
+);
+
+interface RowShellProps {
     href: string;
-    label: React.ReactNode;
-    Icon: React.ReactNode;
     active: boolean;
     onClick: () => void;
+    children: React.ReactNode;
 }
 
-const SuggestionRow = ({ href, label, Icon, active, onClick }: SuggestionRowProps) => (
+const RowShell = ({ href, active, onClick, children }: RowShellProps) => (
     <Link
         href={href}
         role="option"
@@ -302,14 +334,153 @@ const SuggestionRow = ({ href, label, Icon, active, onClick }: SuggestionRowProp
             onClick();
         }}
         className={cn(
-            "flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
-            "hover:bg-accent hover:text-accent-foreground",
-            active && "bg-accent text-accent-foreground",
+            "flex items-center gap-3 px-3 py-2 text-sm transition-colors",
+            "hover:bg-accent",
+            active && "bg-accent",
         )}
     >
-        {Icon}
-        <span className="truncate">{label}</span>
+        {children}
     </Link>
+);
+
+const SearchForRow = ({
+    query,
+    href,
+    active,
+    onClick,
+}: {
+    query: string;
+    href: string;
+    active: boolean;
+    onClick: () => void;
+}) => (
+    <RowShell href={href} active={active} onClick={onClick}>
+        <Search01Icon size={16} strokeWidth={1.6} className="shrink-0 text-muted-foreground" />
+        <span className="truncate">
+            Search for <span className="font-semibold">&ldquo;{query}&rdquo;</span>
+        </span>
+    </RowShell>
+);
+
+const VideoRow = ({
+    video,
+    query,
+    active,
+    onClick,
+}: {
+    video: VideoSuggestion;
+    query: string;
+    active: boolean;
+    onClick: () => void;
+}) => {
+    const thumb = video.thumbnailPath ? `/api/hls/${video.id}/thumb/sprite.jpg` : null;
+    const published = video.publishedAt ? formatRelativeTime(new Date(video.publishedAt)) : null;
+    return (
+        <RowShell href={video.href} active={active} onClick={onClick}>
+            <div className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-md bg-secondary">
+                {thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
+                ) : null}
+                {video.durationSec != null && video.durationSec > 0 && (
+                    <span className="absolute bottom-0.5 right-0.5 rounded bg-black/85 px-1 text-[9px] font-medium tabular-nums text-white">
+                        {formatDuration(video.durationSec)}
+                    </span>
+                )}
+            </div>
+            <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
+                    <Highlight text={video.title} query={query} />
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                    <Highlight text={video.channelName} query={query} />
+                    <span aria-hidden="true"> · </span>
+                    {formatCount(video.viewCount)} views
+                    {published && (
+                        <>
+                            <span aria-hidden="true"> · </span>
+                            {published}
+                        </>
+                    )}
+                </p>
+                {video.description && (
+                    <p className="line-clamp-1 text-xs text-muted-foreground/80">
+                        <Highlight text={video.description.slice(0, 140)} query={query} />
+                    </p>
+                )}
+            </div>
+        </RowShell>
+    );
+};
+
+const ChannelRow = ({
+    channel,
+    query,
+    active,
+    onClick,
+}: {
+    channel: ChannelSuggestion;
+    query: string;
+    active: boolean;
+    onClick: () => void;
+}) => {
+    const avatar = channel.avatarPath ? `/api/channel/${channel.id}/asset/avatar` : null;
+    return (
+        <RowShell href={channel.href} active={active} onClick={onClick}>
+            <span className="relative inline-block h-10 w-10 shrink-0 overflow-hidden rounded-full">
+                <InitialsAvatar name={channel.name} seed={channel.handle} size={40} />
+                {avatar && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatar} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                )}
+            </span>
+            <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="truncate text-sm font-medium text-foreground">
+                    <Highlight text={channel.name} query={query} />
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                    @<Highlight text={channel.handle} query={query} />
+                    <span aria-hidden="true"> · </span>
+                    {formatCount(channel.subscriberCount)} subscriber
+                    {channel.subscriberCount !== 1 ? "s" : ""}
+                    <span aria-hidden="true"> · </span>
+                    {formatCount(channel.videoCount)} video{channel.videoCount !== 1 ? "s" : ""}
+                </p>
+            </div>
+        </RowShell>
+    );
+};
+
+const PlaylistRow = ({
+    playlist,
+    query,
+    active,
+    onClick,
+}: {
+    playlist: PlaylistSuggestion;
+    query: string;
+    active: boolean;
+    onClick: () => void;
+}) => (
+    <RowShell href={playlist.href} active={active} onClick={onClick}>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+            <Time04Icon size={18} strokeWidth={1.6} />
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+            <p className="truncate text-sm font-medium text-foreground">
+                <Highlight text={playlist.title} query={query} />
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+                {playlist.itemCount} video{playlist.itemCount !== 1 ? "s" : ""}
+                {playlist.ownerName && (
+                    <>
+                        <span aria-hidden="true"> · </span>
+                        by {playlist.ownerName}
+                    </>
+                )}
+            </p>
+        </div>
+    </RowShell>
 );
 
 interface RecentRowProps {
@@ -325,8 +496,8 @@ const RecentRow = ({ query, active, onSelect, onRemove }: RecentRowProps) => (
         aria-selected={active}
         className={cn(
             "group flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
-            "hover:bg-accent hover:text-accent-foreground",
-            active && "bg-accent text-accent-foreground",
+            "hover:bg-accent",
+            active && "bg-accent",
         )}
     >
         <Time04Icon size={16} strokeWidth={1.6} className="shrink-0 text-muted-foreground" />

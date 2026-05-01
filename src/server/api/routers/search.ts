@@ -171,79 +171,134 @@ export const searchRouter = createTRPCRouter({
     }),
 
     /**
-     * Autocomplete suggestions.
-     * Unions video titles, channel names, and playlist titles ranked by
-     * pg_trgm similarity. Returns at most 10 items total.
+     * Autocomplete suggestions — rich payloads per kind.
+     * Three separate trigram queries join the metadata each row needs to
+     * render a useful preview (thumbnails/durations/uploaders for videos,
+     * avatars + counts for channels, owner + item count for playlists).
      */
     autocomplete: publicProcedure.input(autocompleteInputSchema).query(async ({ ctx, input }) => {
         const { q } = input;
 
-        // Guard: require at least 2 chars so we do not hammer trigram index
-        // on single-character queries.
         if (q.trim().length < 2) return [];
 
-        type SuggestionRow = {
-            kind: "video" | "channel" | "playlist";
-            label: string;
-            href: string;
+        type VideoRow = {
+            id: string;
+            public_id: string | null;
+            title: string;
+            description: string | null;
+            thumbnail_path: string | null;
+            duration_sec: number | null;
+            view_count: number;
+            published_at: Date | null;
+            channel_id: string;
+            channel_name: string;
+            channel_handle: string;
+            sim: number;
+        };
+        type ChannelRow = {
+            id: string;
+            name: string;
+            handle: string;
+            avatar_path: string | null;
+            subscriber_count: number;
+            video_count: number;
+            sim: number;
+        };
+        type PlaylistRow = {
+            id: string;
+            title: string;
+            owner_name: string | null;
+            item_count: number;
             sim: number;
         };
 
-        // Each per-source SELECT has its own ORDER BY + LIMIT, so they
-        // need to be parenthesised before the UNION ALL — bare ORDER BY
-        // inside a UNION branch is a syntax error in Postgres.
-        const rows = await ctx.db.execute<SuggestionRow>(sql`
-                SELECT kind, label, href, sim FROM (
-                    (
-                        SELECT
-                            'video'                               AS kind,
-                            v.title                               AS label,
-                            '/watch/' || v.id                     AS href,
-                            similarity(v.title, ${q})             AS sim
-                        FROM videos v
-                        WHERE
-                            v.title % ${q}
+        const [videoRows, channelRows, playlistRows] = await Promise.all([
+            ctx.db.execute<VideoRow>(sql`
+                SELECT
+                    v.id, v.public_id, v.title, v.description, v.thumbnail_path,
+                    v.duration_sec, v.view_count, v.published_at,
+                    c.id AS channel_id, c.name AS channel_name, c.handle AS channel_handle,
+                    similarity(v.title, ${q}) AS sim
+                FROM videos v
+                INNER JOIN channels c ON c.id = v.channel_id
+                WHERE v.title % ${q}
+                    AND v.privacy = 'public'
+                    AND v.status = 'ready'
+                    AND v.is_draft = false
+                ORDER BY sim DESC
+                LIMIT 5
+            `),
+            ctx.db.execute<ChannelRow>(sql`
+                SELECT
+                    c.id, c.name, c.handle, c.avatar_path,
+                    (SELECT COUNT(*)::int FROM subscriptions s WHERE s.channel_id = c.id) AS subscriber_count,
+                    (SELECT COUNT(*)::int FROM videos v
+                        WHERE v.channel_id = c.id
                             AND v.privacy = 'public'
                             AND v.status = 'ready'
-                        ORDER BY sim DESC
-                        LIMIT 5
-                    )
-                    UNION ALL
-                    (
-                        SELECT
-                            'channel'                             AS kind,
-                            c.name                                AS label,
-                            '/@' || c.handle                      AS href,
-                            similarity(c.name, ${q})              AS sim
-                        FROM channels c
-                        WHERE c.name % ${q}
-                        ORDER BY sim DESC
-                        LIMIT 3
-                    )
-                    UNION ALL
-                    (
-                        SELECT
-                            'playlist'                            AS kind,
-                            p.title                               AS label,
-                            '/playlist/' || p.id                  AS href,
-                            similarity(p.title, ${q})             AS sim
-                        FROM playlists p
-                        WHERE
-                            p.title % ${q}
-                            AND p.privacy = 'public'
-                            AND p.kind = 'user'
-                        ORDER BY sim DESC
-                        LIMIT 2
-                    )
-                ) sub
+                            AND v.is_draft = false) AS video_count,
+                    similarity(c.name, ${q}) AS sim
+                FROM channels c
+                WHERE c.name % ${q}
                 ORDER BY sim DESC
-            `);
+                LIMIT 3
+            `),
+            ctx.db.execute<PlaylistRow>(sql`
+                SELECT
+                    p.id, p.title,
+                    u.name AS owner_name,
+                    (SELECT COUNT(*)::int FROM playlist_items pi WHERE pi.playlist_id = p.id) AS item_count,
+                    similarity(p.title, ${q}) AS sim
+                FROM playlists p
+                LEFT JOIN "user" u ON u.id = p.owner_id
+                WHERE p.title % ${q}
+                    AND p.privacy = 'public'
+                    AND p.kind = 'user'
+                ORDER BY sim DESC
+                LIMIT 2
+            `),
+        ]);
 
-        return rows.map((r) => ({
-            kind: r.kind,
-            label: r.label,
-            href: r.href,
+        const videos = videoRows.map((r) => ({
+            kind: "video" as const,
+            sim: Number(r.sim),
+            href: `/watch/${r.public_id ?? r.id}`,
+            id: r.id,
+            publicId: r.public_id,
+            title: r.title,
+            description: r.description ?? "",
+            thumbnailPath: r.thumbnail_path,
+            durationSec: r.duration_sec,
+            viewCount: Number(r.view_count),
+            publishedAt: r.published_at,
+            channelId: r.channel_id,
+            channelName: r.channel_name,
+            channelHandle: r.channel_handle,
         }));
+
+        const channels = channelRows.map((r) => ({
+            kind: "channel" as const,
+            sim: Number(r.sim),
+            href: `/@${r.handle}`,
+            id: r.id,
+            name: r.name,
+            handle: r.handle,
+            avatarPath: r.avatar_path,
+            subscriberCount: Number(r.subscriber_count),
+            videoCount: Number(r.video_count),
+        }));
+
+        const playlists = playlistRows.map((r) => ({
+            kind: "playlist" as const,
+            sim: Number(r.sim),
+            href: `/playlist/${r.id}`,
+            id: r.id,
+            title: r.title,
+            ownerName: r.owner_name,
+            itemCount: Number(r.item_count),
+        }));
+
+        return { videos, channels, playlists };
     }),
 
     /**
