@@ -1,5 +1,5 @@
 import { createCallerFactory, createTRPCRouter, publicProcedure } from "./trpc";
-import { channelRouter } from "./routers";
+import { channelRouter, videoRouter } from "./routers";
 
 // The application router. Sub-routers are added by the per-milestone agents
 // as they land. `health.ping` exists from the start so the wire shape is real
@@ -10,6 +10,7 @@ export const appRouter = createTRPCRouter({
         ping: publicProcedure.query(() => ({ ok: true, ts: new Date().toISOString() })),
     }),
     channel: channelRouter,
+    video: videoRouter,
 });
 
 export type AppRouter = typeof appRouter;
