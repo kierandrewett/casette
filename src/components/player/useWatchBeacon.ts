@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/trpc/client";
@@ -8,6 +8,17 @@ import { useSession } from "@/lib/auth-client";
 import { formatDuration } from "@/lib/utils";
 
 const BEACON_INTERVAL_MS = 5000;
+// Floor between any two recordProgress emissions, regardless of source
+// (interval tick, pause, unmount). Prevents a mount/unmount storm or a
+// pause/resume flutter from collapsing dozens of identical mutations into
+// one tRPC batch — we saw 53 in a single request after a hydration-induced
+// re-render cascade. Picked < BEACON_INTERVAL_MS so the steady-state 5 s
+// tick still lands.
+const MIN_EMIT_GAP_MS = 1500;
+// Anything below this position is treated as "not started" and never emitted.
+// Avoids the cleanup-time flush firing a useless `positionSec=0` write the
+// instant a player mounts and unmounts before the user pressed play.
+const MIN_EMIT_POSITION_SEC = 1;
 
 interface UseWatchBeaconOptions {
     videoId: string;
@@ -35,9 +46,41 @@ export const useWatchBeacon = ({ videoId, getPositionSec, seek }: UseWatchBeacon
     const recordProgress = api.video.recordProgress.useMutation();
     const hasOfferedResume = useRef(false);
 
-    const sendProgress = (positionSec: number) => {
-        recordProgress.mutate({ videoId, positionSec: Math.floor(positionSec) });
-    };
+    // Stable refs for things the interval / cleanup closes over. Without
+    // these the effect's cleanup captures whatever values were live the
+    // tick the effect ran, and a re-render storm can fire many cleanups
+    // back-to-back with stale data.
+    const getPositionRef = useRef(getPositionSec);
+    const recordRef = useRef(recordProgress);
+    useEffect(() => {
+        getPositionRef.current = getPositionSec;
+        recordRef.current = recordProgress;
+    });
+
+    // Last position+timestamp we actually sent. Module-style refs (not
+    // state) — we never want a re-render off this, and the floor must
+    // hold across cleanup→remount cycles for the same videoId.
+    const lastEmitMsRef = useRef(0);
+    const lastEmitPosRef = useRef(-1);
+
+    const sendProgress = useCallback(
+        (rawPositionSec: number) => {
+            const positionSec = Math.floor(rawPositionSec);
+            if (!Number.isFinite(positionSec)) return;
+            if (positionSec < MIN_EMIT_POSITION_SEC) return;
+            const now = Date.now();
+            if (now - lastEmitMsRef.current < MIN_EMIT_GAP_MS && positionSec === lastEmitPosRef.current) {
+                // Identical position emitted very recently — drop it. We still
+                // honour fresh positions inside the gap so a real pause-then-
+                // seek-then-pause sequence isn't lost.
+                return;
+            }
+            lastEmitMsRef.current = now;
+            lastEmitPosRef.current = positionSec;
+            recordRef.current.mutate({ videoId, positionSec });
+        },
+        [videoId],
+    );
 
     useEffect(() => {
         if (!isSignedIn) return;
@@ -50,12 +93,17 @@ export const useWatchBeacon = ({ videoId, getPositionSec, seek }: UseWatchBeacon
                 if (!progress) return;
                 const { positionSec, completed } = progress;
                 if (positionSec > 5 && !completed) {
+                    // Resume immediately so the user is dropped back where
+                    // they left off without waiting for the toast to dismiss.
+                    // Vidstack queues seek() calls received before canPlay,
+                    // so this is safe even if the player isn't fully loaded
+                    // when getProgress resolves. The toast acts as the undo
+                    // affordance for an unintended resume.
+                    seek(positionSec);
                     const label = formatDuration(positionSec);
-                    toast(`Resume from ${label}`, {
+                    toast(`Resumed from ${label}`, {
                         duration: 8000,
                         action: { label: "Restart", onClick: () => seek(0) },
-                        onAutoClose: () => seek(positionSec),
-                        onDismiss: () => seek(positionSec),
                     });
                 }
             })
@@ -67,22 +115,42 @@ export const useWatchBeacon = ({ videoId, getPositionSec, seek }: UseWatchBeacon
     useEffect(() => {
         if (!isSignedIn) return;
 
-        const interval = setInterval(() => sendProgress(getPositionSec()), BEACON_INTERVAL_MS);
+        const interval = setInterval(() => sendProgress(getPositionRef.current()), BEACON_INTERVAL_MS);
 
         return () => {
             clearInterval(interval);
-            // keepalive flush on unmount / navigation. fire-and-forget; the
-            // tRPC client handles superjson + batching.
-            sendProgress(getPositionSec());
+            // Best-effort flush on unmount / navigation. The send-progress
+            // floor above absorbs the case where this fires repeatedly
+            // because something upstream is re-keying the effect.
+            sendProgress(getPositionRef.current());
         };
-    }, [videoId, isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [videoId, isSignedIn, sendProgress]);
 };
 
 /** Hook that returns a `flushProgress(positionSec)` callback — call from
- *  the player's onPause to record progress at the moment of pause. */
+ *  the player's onPause to record progress at the moment of pause. The
+ *  callback is rate-limited the same way as the periodic beacon so a
+ *  flutter of paused→playing→paused transitions can't spam the server. */
 export const useFlushProgress = (videoId: string): ((positionSec: number) => void) => {
     const recordProgress = api.video.recordProgress.useMutation();
-    return (positionSec: number) => {
-        recordProgress.mutate({ videoId, positionSec: Math.floor(positionSec) });
-    };
+    const recordRef = useRef(recordProgress);
+    useEffect(() => {
+        recordRef.current = recordProgress;
+    });
+    const lastEmitMsRef = useRef(0);
+    const lastEmitPosRef = useRef(-1);
+
+    return useCallback(
+        (rawPositionSec: number) => {
+            const positionSec = Math.floor(rawPositionSec);
+            if (!Number.isFinite(positionSec)) return;
+            if (positionSec < MIN_EMIT_POSITION_SEC) return;
+            const now = Date.now();
+            if (now - lastEmitMsRef.current < MIN_EMIT_GAP_MS && positionSec === lastEmitPosRef.current) return;
+            lastEmitMsRef.current = now;
+            lastEmitPosRef.current = positionSec;
+            recordRef.current.mutate({ videoId, positionSec });
+        },
+        [videoId],
+    );
 };
