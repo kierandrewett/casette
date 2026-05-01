@@ -32,9 +32,9 @@ export const ChannelTabs = ({ handle }: ChannelTabsProps) => {
     const base = `/channel/${handle}`;
 
     return (
-        <div className="border-b border-border" role="tablist" aria-label="Channel sections">
-            <div className="mx-auto max-w-5xl px-4 md:px-6">
-                <nav className="-mb-px flex gap-6">
+        <div className="mt-6 border-b border-border" role="tablist" aria-label="Channel sections">
+            <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
+                <nav className="-mb-px flex gap-8">
                     {TABS.map((tab) => {
                         const href = tab.slug ? `${base}/${tab.slug}` : base;
                         // The videos tab matches both the bare base and the

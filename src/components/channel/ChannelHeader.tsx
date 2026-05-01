@@ -20,20 +20,28 @@ interface ChannelHeaderProps {
     avatarPath: string | null;
     bannerPath: string | null;
     subscriberCount: number;
+    /** Total public+ready videos on the channel — surfaced next to the
+     *  subscriber count in the YouTube-style stats line. */
+    videoCount?: number;
     /** Whether the current viewer is a member (owner/manager/uploader) of this channel. */
     isOwner: boolean;
     /** Whether the current viewer is subscribed. */
     isSubscribed?: boolean;
 }
 
-// Old-YouTube-style channel header.
+// YouTube-style channel header.
 //
-// For owners, clicking "Customise channel" flips the surface into an inline
-// edit mode: the avatar and banner each pick up a hover overlay that opens
-// an upload dialog, and the name + description become directly editable
-// fields. Save / Cancel replace the customise pill while editing. Settings
-// that don't fit the inline model (channel trailer, comment moderation)
-// still live at /studio/channel/<handle>/customise.
+// Layout:
+//   - Banner: full-bleed at top, rounded-xl, ~288px tall on desktop.
+//   - Below banner: avatar (~160px) on the left, info column on the right.
+//     Channel name (large), @handle · subscribers · videos line, description
+//     with truncation, then the action row (Subscribe / RSS / Customise).
+//   - Tabs are a sibling component rendered below this block.
+//
+// For owners, "Customise channel" flips the surface into an inline edit
+// mode: avatar and banner each pick up a hover overlay that opens an
+// upload dialog, name + description become editable. Save / Cancel
+// replace the customise pill while editing.
 export const ChannelHeader = ({
     id,
     handle,
@@ -42,6 +50,7 @@ export const ChannelHeader = ({
     avatarPath,
     bannerPath,
     subscriberCount,
+    videoCount,
     isOwner,
     isSubscribed = false,
 }: ChannelHeaderProps) => {
@@ -55,10 +64,8 @@ export const ChannelHeader = ({
     const [avatarOpen, setAvatarOpen] = useState(false);
     const [bannerOpen, setBannerOpen] = useState(false);
     const [rssOpen, setRssOpen] = useState(false);
+    const [descExpanded, setDescExpanded] = useState(false);
 
-    // Absolute feed URL — rendered into the dialog so the user can copy it
-    // straight into a feed reader. We compute on the client so it's correct
-    // for whichever host they're on (localhost, prod, custom domain).
     const feedPath = `/channel/${handle}/feed.xml`;
     const feedUrl = typeof window !== "undefined" ? `${window.location.origin}${feedPath}` : feedPath;
 
@@ -100,14 +107,17 @@ export const ChannelHeader = ({
         startTransition(() => router.refresh());
     };
 
-    return (
-        <div>
-            {/* Full-bleed banner */}
-            <div className="group/banner relative h-32 w-full overflow-hidden bg-gradient-to-br from-secondary to-secondary/40 sm:h-44 md:h-56">
-                {bannerSrc && <Image src={bannerSrc} alt="" fill className="object-cover" sizes="100vw" priority />}
-                {/* Gradient overlay at bottom for text legibility */}
-                <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/80 to-transparent" />
+    // YouTube collapses long descriptions to one line with "...more". We
+    // approximate by clamping to two lines until the user clicks "...more".
+    const isLong = description.length > 160 || description.includes("\n");
+    const showFull = descExpanded || !isLong;
 
+    return (
+        <div className="mx-auto w-full max-w-7xl px-4 md:px-6 lg:px-8">
+            {/* Banner — rounded card sitting in a side-padded container.
+                Owner edit mode adds a click-to-replace overlay. */}
+            <div className="group/banner relative h-40 w-full overflow-hidden rounded-2xl bg-gradient-to-br from-secondary to-secondary/40 sm:h-56 md:h-64 lg:h-72">
+                {bannerSrc && <Image src={bannerSrc} alt="" fill className="object-cover" sizes="100vw" priority />}
                 {editing && (
                     <button
                         type="button"
@@ -126,124 +136,146 @@ export const ChannelHeader = ({
                 )}
             </div>
 
-            {/* Avatar + info row */}
-            <div className="relative mx-auto max-w-5xl px-4 md:px-6">
-                {/* Avatar overlapping banner edge */}
-                <div className="-mt-8 flex items-end gap-4 sm:-mt-10">
-                    <div className="relative h-20 w-20 flex-shrink-0 sm:h-24 sm:w-24">
-                        <div className="relative h-full w-full overflow-hidden rounded-full border-4 border-background bg-secondary">
-                            {avatarSrc ? (
-                                <Image src={avatarSrc} alt={name} fill className="object-cover" sizes="96px" />
-                            ) : (
-                                <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-muted-foreground">
-                                    {name.charAt(0).toUpperCase()}
-                                </div>
-                            )}
-                        </div>
-                        {editing && (
-                            <button
-                                type="button"
-                                onClick={() => setAvatarOpen(true)}
-                                className={cn(
-                                    "absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity",
-                                    "hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
-                                )}
-                                aria-label="Change avatar"
-                            >
-                                <CameraAdd02Icon size={22} strokeWidth={1.6} />
-                            </button>
+            {/* Header content row. Avatar and info live side-by-side from md+
+                and stack on mobile. Avatar does not overlap the banner. */}
+            <div className="mt-6 flex flex-col gap-6 md:flex-row md:gap-8">
+                {/* Avatar */}
+                <div className="relative flex-shrink-0 self-start">
+                    <div className="relative h-28 w-28 overflow-hidden rounded-full bg-secondary md:h-40 md:w-40">
+                        {avatarSrc ? (
+                            <Image src={avatarSrc} alt={name} fill className="object-cover" sizes="160px" />
+                        ) : (
+                            <div className="flex h-full w-full items-center justify-center text-4xl font-semibold text-muted-foreground md:text-5xl">
+                                {name.charAt(0).toUpperCase()}
+                            </div>
                         )}
                     </div>
-
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 pb-1">
-                        <div className="min-w-0">
-                            {editing ? (
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    maxLength={100}
-                                    className="w-full max-w-md rounded-md border border-border bg-background px-2 py-1 text-xl font-semibold focus:outline-none focus:ring-2 focus:ring-ring sm:text-2xl"
-                                    placeholder="Channel name"
-                                />
-                            ) : (
-                                <h1 className="truncate text-xl font-semibold text-foreground sm:text-2xl">{name}</h1>
+                    {editing && (
+                        <button
+                            type="button"
+                            onClick={() => setAvatarOpen(true)}
+                            className={cn(
+                                "absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity",
+                                "hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
                             )}
-                            <p className="text-sm text-muted-foreground">
-                                <span>@{handle}</span>
-                                <span aria-hidden="true" className="mx-1">
-                                    &middot;
-                                </span>
+                            aria-label="Change avatar"
+                        >
+                            <CameraAdd02Icon size={32} strokeWidth={1.6} />
+                        </button>
+                    )}
+                </div>
+
+                {/* Info column */}
+                <div className="min-w-0 flex-1 space-y-3">
+                    {/* Channel name */}
+                    {editing ? (
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            maxLength={100}
+                            className="block w-full max-w-2xl rounded-md border border-border bg-background px-2 py-1 text-2xl font-bold tracking-tight focus:outline-none focus:ring-2 focus:ring-ring md:text-4xl"
+                            placeholder="Channel name"
+                        />
+                    ) : (
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-4xl">{name}</h1>
+                    )}
+
+                    {/* Stats line: @handle · subscribers · videos */}
+                    <p className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground/90">@{handle}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                            {formatCount(subscriberCount)} subscriber{subscriberCount !== 1 ? "s" : ""}
+                        </span>
+                        {videoCount !== undefined && (
+                            <>
+                                <span aria-hidden="true">·</span>
                                 <span>
-                                    {formatCount(subscriberCount)} subscriber{subscriberCount !== 1 ? "s" : ""}
+                                    {formatCount(videoCount)} video{videoCount !== 1 ? "s" : ""}
                                 </span>
+                            </>
+                        )}
+                    </p>
+
+                    {/* Description with YouTube-style "...more" expansion */}
+                    {editing ? (
+                        <div>
+                            <textarea
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                maxLength={2000}
+                                rows={3}
+                                className="block w-full max-w-2xl resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                placeholder="Tell viewers about your channel"
+                            />
+                            <p className="mt-1 max-w-2xl text-right text-xs text-muted-foreground">
+                                {description.length} / 2000
                             </p>
                         </div>
+                    ) : description ? (
+                        <div className="max-w-2xl text-sm text-foreground/80">
+                            <p className={cn(showFull ? "whitespace-pre-line" : "line-clamp-1")}>{description}</p>
+                            {isLong && (
+                                <button
+                                    type="button"
+                                    onClick={() => setDescExpanded((v) => !v)}
+                                    className="mt-1 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                                >
+                                    {showFull ? "less" : "...more"}
+                                </button>
+                            )}
+                        </div>
+                    ) : null}
 
-                        <div className="flex flex-shrink-0 items-center gap-2">
-                            {isOwner ? (
-                                editing ? (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={handleCancel}
-                                            disabled={updateChannel.isPending}
-                                            className="inline-flex h-9 items-center rounded-full border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleSave}
-                                            disabled={updateChannel.isPending || name.trim().length === 0}
-                                            className="inline-flex h-9 items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                                        >
-                                            {updateChannel.isPending ? "Saving…" : "Save"}
-                                        </button>
-                                    </>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditing(true)}
-                                        className="inline-flex h-9 items-center gap-2 rounded-full border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-                                    >
-                                        <PencilEdit02Icon size={16} strokeWidth={1.6} />
-                                        Customise channel
-                                    </button>
-                                )
-                            ) : (
+                    {/* Action row */}
+                    <div className="flex flex-wrap items-center gap-2 pt-2">
+                        {isOwner ? (
+                            editing ? (
                                 <>
                                     <button
                                         type="button"
-                                        onClick={() => setRssOpen(true)}
-                                        title="Subscribe via RSS"
-                                        aria-label="Subscribe via RSS"
-                                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground/80 transition-colors hover:bg-secondary hover:text-foreground"
+                                        onClick={handleCancel}
+                                        disabled={updateChannel.isPending}
+                                        className="inline-flex h-9 items-center rounded-full border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
                                     >
-                                        <RssIcon size={16} strokeWidth={1.8} />
+                                        Cancel
                                     </button>
-                                    <SubscribeButton channelId={id} initialSubscribed={isSubscribed} />
+                                    <button
+                                        type="button"
+                                        onClick={handleSave}
+                                        disabled={updateChannel.isPending || name.trim().length === 0}
+                                        className="inline-flex h-9 items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                                    >
+                                        {updateChannel.isPending ? "Saving…" : "Save"}
+                                    </button>
                                 </>
-                            )}
-                        </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setEditing(true)}
+                                    className="inline-flex h-9 items-center gap-2 rounded-full border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+                                >
+                                    <PencilEdit02Icon size={16} strokeWidth={1.6} />
+                                    Customise channel
+                                </button>
+                            )
+                        ) : (
+                            <>
+                                <SubscribeButton channelId={id} initialSubscribed={isSubscribed} />
+                                <button
+                                    type="button"
+                                    onClick={() => setRssOpen(true)}
+                                    title="Subscribe via RSS"
+                                    aria-label="Subscribe via RSS"
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground/80 transition-colors hover:bg-secondary hover:text-foreground"
+                                >
+                                    <RssIcon size={16} strokeWidth={1.8} />
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
-
-                {editing ? (
-                    <div className="mt-3">
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            maxLength={2000}
-                            rows={3}
-                            className="block w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                            placeholder="Tell viewers about your channel"
-                        />
-                        <p className="mt-1 text-right text-xs text-muted-foreground">{description.length} / 2000</p>
-                    </div>
-                ) : description ? (
-                    <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{description}</p>
-                ) : null}
             </div>
 
             {/* Asset upload dialogs — opened from the inline edit overlays. */}
@@ -281,9 +313,6 @@ export const ChannelHeader = ({
                 </DialogContent>
             </Dialog>
 
-            {/* RSS subscribe dialog — surfaces the feed URL so the user can
-                paste it into a feed reader. Includes a Copy button + a
-                direct link to the raw feed for inline preview. */}
             <Dialog open={rssOpen} onOpenChange={setRssOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>

@@ -9,6 +9,7 @@ import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channelMembers, channels } from "@/server/db/schema/channels";
 import { subscriptions } from "@/server/db/schema/social";
+import { videos } from "@/server/db/schema/videos";
 
 interface ChannelLayoutProps {
     children: React.ReactNode;
@@ -63,8 +64,19 @@ const ChannelLayout = async ({ children, params }: ChannelLayoutProps) => {
 
     if (!channel) notFound();
 
-    const [subCountResult, membershipResult, subscriptionResult] = await Promise.allSettled([
+    const [subCountResult, videoCountResult, membershipResult, subscriptionResult] = await Promise.allSettled([
         db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.channelId, channel.id)),
+        db
+            .select({ value: count() })
+            .from(videos)
+            .where(
+                and(
+                    eq(videos.channelId, channel.id),
+                    eq(videos.privacy, "public"),
+                    eq(videos.status, "ready"),
+                    eq(videos.isDraft, false),
+                ),
+            ),
         session?.user
             ? db
                   .select({ role: channelMembers.role })
@@ -82,6 +94,7 @@ const ChannelLayout = async ({ children, params }: ChannelLayoutProps) => {
     ]);
 
     const subscriberCount = subCountResult.status === "fulfilled" ? (subCountResult.value[0]?.value ?? 0) : 0;
+    const videoCount = videoCountResult.status === "fulfilled" ? (videoCountResult.value[0]?.value ?? 0) : 0;
     const isMember = membershipResult.status === "fulfilled" && membershipResult.value.length > 0;
     const isSubscribed = subscriptionResult.status === "fulfilled" && subscriptionResult.value.length > 0;
 
@@ -96,6 +109,7 @@ const ChannelLayout = async ({ children, params }: ChannelLayoutProps) => {
                     avatarPath={channel.avatarPath ?? null}
                     bannerPath={channel.bannerPath ?? null}
                     subscriberCount={subscriberCount}
+                    videoCount={videoCount}
                     isOwner={isMember}
                     isSubscribed={isSubscribed}
                 />
