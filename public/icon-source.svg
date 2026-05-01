@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <!-- Filled background so the icon works as a maskable PWA icon. -->
+    <rect width="512" height="512" fill="#0b0b0d"/>
+    <!-- Cassette body — proportions match the favicon, centred with safe-area
+         padding (~20% inset on each side) for maskable icon clipping. -->
+    <rect x="80" y="160" width="352" height="192" rx="32" fill="#0b0b0d" stroke="#ffffff" stroke-opacity="0.18" stroke-width="6"/>
+    <!-- Spools -->
+    <circle cx="192" cy="256" r="40" fill="#ffffff"/>
+    <circle cx="320" cy="256" r="40" fill="#ffffff"/>
+    <!-- Tape window -->
+    <rect x="144" y="312" width="224" height="20" rx="10" fill="#ffffff" fill-opacity="0.4"/>
+</svg>
