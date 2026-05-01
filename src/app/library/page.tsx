@@ -1,10 +1,19 @@
 import { headers } from "next/headers";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+    PlaySquareIcon,
+    BookmarkAdd02Icon,
+    Time04Icon,
+    LibraryIcon,
+    Notification03Icon,
+    VideoReplayIcon,
+} from "hugeicons-react";
 
 import AppShell from "@/components/shell/AppShell";
 import { LibraryRow } from "@/components/library/LibraryRow";
 import { CreatePlaylistTile } from "@/components/library/CreatePlaylistTile";
+import { PlaylistTile } from "@/components/library/PlaylistTile";
+import { EmptyShelfCard } from "@/components/library/EmptyShelfCard";
 import { VideoCard } from "@/components/video/VideoCard";
 import { QueueRow } from "@/components/library/QueueRow";
 import { auth } from "@/lib/auth";
@@ -26,17 +35,12 @@ const LibraryPage = async () => {
     }
     const userId = session.user.id;
 
-    // Resolve (or skip) system playlists without creating them — they'll be
+    // Resolve (or skip) system playlists without creating them — they're
     // created on first use by the tRPC mutation procedures.
     const systemPlaylists = await db
         .select({ id: playlists.id, kind: playlists.kind })
         .from(playlists)
-        .where(
-            and(
-                eq(playlists.ownerId, userId),
-                inArray(playlists.kind, ["queue", "watch_later"]),
-            ),
-        );
+        .where(and(eq(playlists.ownerId, userId), inArray(playlists.kind, ["queue", "watch_later"])));
 
     const queuePlaylistId = systemPlaylists.find((p) => p.kind === "queue")?.id;
     const watchLaterPlaylistId = systemPlaylists.find((p) => p.kind === "watch_later")?.id;
@@ -98,7 +102,7 @@ const LibraryPage = async () => {
             .orderBy(desc(watchHistory.watchedAt))
             .limit(12),
 
-        // Recent history — unfiltered, for the "Recent" row at the bottom.
+        // Recent history — unfiltered, for the "Recent" row near the bottom.
         db
             .select({
                 historyId: watchHistory.id,
@@ -151,10 +155,7 @@ const LibraryPage = async () => {
             .orderBy(desc(playlists.updatedAt)),
 
         // Subscribed channel IDs for the feed
-        db
-            .select({ channelId: subscriptions.channelId })
-            .from(subscriptions)
-            .where(eq(subscriptions.userId, userId)),
+        db.select({ channelId: subscriptions.channelId }).from(subscriptions).where(eq(subscriptions.userId, userId)),
     ]);
 
     // Subscription feed: last 8 public ready videos from subscribed channels.
@@ -188,15 +189,19 @@ const LibraryPage = async () => {
 
     return (
         <AppShell>
-            {/* Full-width on ultra-wide; max-w-7xl was capping the layout
-                at 1280 px so half the screen sat empty. */}
-            <div className="space-y-10 py-8">
-                <h1 className="px-4 text-2xl font-semibold text-foreground md:px-6">Library</h1>
+            {/* Generous gap-12 between shelves matches the Apple-TV brief; py-8
+                gives a little air at the top and bottom of the page. */}
+            <div className="space-y-12 py-8">
+                <div className="px-4 md:px-6">
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground">Library</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Everything you&rsquo;ve saved, started, or subscribed to.
+                    </p>
+                </div>
 
-                {/* Up Next (queue). Renders as a horizontal drag-reorderable
-                    strip via QueueRow; if the queue does not yet exist for this
-                    user, fall back to an empty LibraryRow with a CTA. */}
-                {queuePlaylistId ? (
+                {/* Up Next (queue). Drag-reorderable on populated state via QueueRow;
+                    when empty, render a clean empty card instead of an unstyled CTA. */}
+                {queuePlaylistId && queueItems.length > 0 ? (
                     <QueueRow
                         playlistId={queuePlaylistId}
                         initialItems={queueItems.map((item, idx) => ({
@@ -212,90 +217,103 @@ const LibraryPage = async () => {
                         }))}
                     />
                 ) : (
-                    <LibraryRow
-                        heading="Up Next"
-                        isEmpty
-                        emptyMessage="Add videos to your queue and they'll appear here on every device."
-                    >
-                        {null}
+                    <LibraryRow heading="Up Next" caption="Your cross-device queue">
+                        <EmptyShelfCard
+                            Icon={PlaySquareIcon}
+                            title="Nothing queued"
+                            description="Add videos to your queue and they'll appear here on every device."
+                            cta={{ label: "Browse home", href: "/" }}
+                        />
                     </LibraryRow>
                 )}
 
                 {/* Continue watching — incomplete watchProgress only */}
-                <LibraryRow
-                    heading="Continue watching"
-                    isEmpty={continueRows.length === 0}
-                    emptyMessage="Videos you've started watching will appear here."
-                >
-                    {continueRows.map((item) => (
-                        <div key={item.historyId} className="w-56 flex-shrink-0">
-                            <VideoCard video={{ ...item.video, channel: item.channel }} />
-                        </div>
-                    ))}
+                <LibraryRow heading="Continue watching">
+                    {continueRows.length > 0 ? (
+                        continueRows.map((item) => (
+                            <div key={item.historyId} className="w-80 flex-shrink-0">
+                                <VideoCard video={{ ...item.video, channel: item.channel }} />
+                            </div>
+                        ))
+                    ) : (
+                        <EmptyShelfCard
+                            Icon={VideoReplayIcon}
+                            title="Pick up where you left off"
+                            description="Videos you've started but haven't finished show up here."
+                            cta={{ label: "Browse home", href: "/" }}
+                        />
+                    )}
                 </LibraryRow>
 
                 {/* Watch Later */}
-                <LibraryRow
-                    heading="Watch Later"
-                    isEmpty={watchLaterItems.length === 0}
-                    emptyMessage="Videos you save for later will appear here."
-                >
-                    {watchLaterItems.map((item) => (
-                        <div key={item.itemId} className="w-56 flex-shrink-0">
-                            <VideoCard video={{ ...item.video, channel: item.channel }} />
-                        </div>
-                    ))}
+                <LibraryRow heading="Watch Later">
+                    {watchLaterItems.length > 0 ? (
+                        watchLaterItems.map((item) => (
+                            <div key={item.itemId} className="w-80 flex-shrink-0">
+                                <VideoCard video={{ ...item.video, channel: item.channel }} />
+                            </div>
+                        ))
+                    ) : (
+                        <EmptyShelfCard
+                            Icon={BookmarkAdd02Icon}
+                            title="Save videos for later"
+                            description="Tap the bookmark on any video to add it to Watch Later."
+                            cta={{ label: "Browse home", href: "/" }}
+                        />
+                    )}
                 </LibraryRow>
 
-                {/* Your Playlists */}
-                <section className="space-y-3">
-                    <div className="flex items-center justify-between px-4 md:px-6">
-                        <h2 className="text-base font-semibold text-foreground">Your Playlists</h2>
-                    </div>
-                    <div className="flex gap-3 overflow-x-auto px-4 pb-2 md:px-6" style={{ scrollbarWidth: "none" }}>
-                        {userPlaylists.map((pl) => (
-                            <Link
-                                key={pl.id}
-                                href={`/playlist/${pl.id}`}
-                                className="flex h-40 w-36 flex-shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-center transition-colors hover:bg-secondary"
-                            >
-                                <div className="text-2xl">&#9654;</div>
-                                <span className="line-clamp-2 text-xs font-medium text-foreground">{pl.title}</span>
-                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                    {pl.privacy}
-                                </span>
-                            </Link>
-                        ))}
-                        <CreatePlaylistTile />
-                    </div>
-                </section>
+                {/* Your Playlists — playlists are now rendered via PlaylistTile so
+                    the create tile shares its dimensions and hover treatment. */}
+                <LibraryRow heading="Your playlists">
+                    {userPlaylists.length === 0 && (
+                        <EmptyShelfCard
+                            Icon={LibraryIcon}
+                            title="No playlists yet"
+                            description="Group your favourite videos into curated lists."
+                            variant="playlist"
+                        />
+                    )}
+                    {userPlaylists.map((pl) => (
+                        <PlaylistTile key={pl.id} id={pl.id} title={pl.title} privacy={pl.privacy} />
+                    ))}
+                    {/* Create tile sits at the END so existing playlists read first. */}
+                    <CreatePlaylistTile />
+                </LibraryRow>
 
                 {/* Recent history — unfiltered */}
-                <LibraryRow
-                    heading="Recent"
-                    seeAllHref="/history"
-                    isEmpty={recentRows.length === 0}
-                    emptyMessage="Videos you watch will appear here."
-                >
-                    {recentRows.map((item) => (
-                        <div key={item.historyId} className="w-56 flex-shrink-0">
-                            <VideoCard video={{ ...item.video, channel: item.channel }} />
-                        </div>
-                    ))}
+                <LibraryRow heading="Recent" seeAllHref="/history">
+                    {recentRows.length > 0 ? (
+                        recentRows.map((item) => (
+                            <div key={item.historyId} className="w-80 flex-shrink-0">
+                                <VideoCard video={{ ...item.video, channel: item.channel }} />
+                            </div>
+                        ))
+                    ) : (
+                        <EmptyShelfCard
+                            Icon={Time04Icon}
+                            title="No history yet"
+                            description="Your watched videos will appear here."
+                        />
+                    )}
                 </LibraryRow>
 
                 {/* Subscriptions feed */}
-                <LibraryRow
-                    heading="Subscriptions"
-                    seeAllHref="/subscriptions"
-                    isEmpty={subVideos.length === 0}
-                    emptyMessage="Subscribe to channels to see their latest videos here."
-                >
-                    {subVideos.map((video) => (
-                        <div key={video.id} className="w-56 flex-shrink-0">
-                            <VideoCard video={video} />
-                        </div>
-                    ))}
+                <LibraryRow heading="From your subscriptions" seeAllHref="/subscriptions">
+                    {subVideos.length > 0 ? (
+                        subVideos.map((video) => (
+                            <div key={video.id} className="w-80 flex-shrink-0">
+                                <VideoCard video={video} />
+                            </div>
+                        ))
+                    ) : (
+                        <EmptyShelfCard
+                            Icon={Notification03Icon}
+                            title="Subscribe to see updates"
+                            description="Subscribe to channels and their latest videos will land here."
+                            cta={{ label: "Discover channels", href: "/" }}
+                        />
+                    )}
                 </LibraryRow>
             </div>
         </AppShell>

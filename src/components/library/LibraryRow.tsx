@@ -4,42 +4,40 @@ import { cn } from "@/lib/utils";
 
 interface LibraryRowProps {
     heading: string;
+    /** Optional "see all" destination shown on the right side of the header. */
     seeAllHref?: string;
+    /** Optional caption rendered under the heading (e.g. count, hint). */
+    caption?: string;
     children: React.ReactNode;
     className?: string;
-    emptyMessage?: string;
-    isEmpty?: boolean;
 }
 
-// Horizontal scrolling card row with a heading and optional "See all" link.
-// Renders children in a scrollable flex row; consumers supply the cards.
-export const LibraryRow = ({ heading, seeAllHref, children, className, emptyMessage, isEmpty }: LibraryRowProps) => {
+// Apple-TV-style "shelf" wrapper: heading + "see all" link, then a horizontally
+// scrollable row of cards. Empty-state copy is rendered by callers via
+// <EmptyShelfCard /> so each shelf can customise its illustration + CTA.
+export const LibraryRow = ({ heading, seeAllHref, caption, children, className }: LibraryRowProps) => {
     return (
         <section className={cn("space-y-3", className)}>
-            <div className="flex items-center justify-between px-4 md:px-6">
-                <h2 className="text-base font-semibold text-foreground">{heading}</h2>
+            <div className="flex items-end justify-between gap-3 px-4 md:px-6">
+                <div>
+                    <h2 className="text-lg font-semibold text-foreground">{heading}</h2>
+                    {caption && <p className="mt-0.5 text-xs text-muted-foreground">{caption}</p>}
+                </div>
                 {seeAllHref && (
                     <Link
                         href={seeAllHref}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
                     >
                         See all
                     </Link>
                 )}
             </div>
-
-            {isEmpty ? (
-                <p className="px-4 md:px-6 text-sm text-muted-foreground">
-                    {emptyMessage ?? "Nothing here yet."}
-                </p>
-            ) : (
-                <div
-                    className="flex gap-3 overflow-x-auto px-4 pb-2 md:px-6 scrollbar-hide"
-                    style={{ scrollbarWidth: "none" }}
-                >
-                    {children}
-                </div>
-            )}
+            <div
+                className="scrollbar-hide flex gap-3 overflow-x-auto px-4 pb-3 md:px-6"
+                style={{ scrollbarWidth: "none" }}
+            >
+                {children}
+            </div>
         </section>
     );
 };
