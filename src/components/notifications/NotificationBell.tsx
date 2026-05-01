@@ -9,6 +9,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 
 // NotificationBell drives the header bell + unread count badge.
 //
@@ -133,36 +134,66 @@ export const NotificationBell = ({ enabled }: { enabled: boolean }) => {
                         </div>
                     ) : (
                         <ul className="divide-y divide-border">
-                            {list.data?.items.map((n) => (
-                                <li key={n.id}>
-                                    <Link
-                                        href={
-                                            n.kind === "new_upload" && n.videoId
-                                                ? `/watch/${n.videoId}`
-                                                : n.kind === "comment_reply" && n.videoId
-                                                  ? `/watch/${n.videoId}#comment-${n.commentId ?? ""}`
-                                                  : "/"
-                                        }
-                                        onClick={() => {
-                                            if (!n.readAt) markRead.mutate({ id: n.id });
-                                            setOpen(false);
-                                        }}
-                                        className={cn(
-                                            "flex flex-col gap-1 px-4 py-3 transition hover:bg-accent",
-                                            !n.readAt && "bg-accent/40",
-                                        )}
-                                    >
-                                        <p className="text-sm">
-                                            {n.kind === "new_upload"
-                                                ? "A channel you subscribe to uploaded a new video."
-                                                : "Someone replied to your comment."}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {formatRelativeTime(n.createdAt)}
-                                        </p>
-                                    </Link>
-                                </li>
-                            ))}
+                            {list.data?.items.map((n) => {
+                                // Actor avatar — channels feed `image` from their
+                                // explicit avatar upload; comment authors fall
+                                // through to libravatar via `gravatarHash`.
+                                const avatarUser =
+                                    n.actor?.kind === "channel"
+                                        ? {
+                                              name: n.actor.name,
+                                              image: n.actor.avatarPath
+                                                  ? `/api/channel/${n.actor.channelId}/asset/avatar`
+                                                  : null,
+                                          }
+                                        : n.actor?.kind === "user"
+                                          ? {
+                                                name: n.actor.name,
+                                                image: n.actor.image,
+                                                gravatarHash: n.actor.gravatarHash,
+                                            }
+                                          : { name: null };
+
+                                const headline =
+                                    n.kind === "new_upload"
+                                        ? n.actor?.kind === "channel"
+                                            ? `${n.actor.name} uploaded a new video.`
+                                            : "A channel you subscribe to uploaded a new video."
+                                        : n.actor?.kind === "user"
+                                          ? `${n.actor.name ?? "Someone"} replied to your comment.`
+                                          : "Someone replied to your comment.";
+
+                                return (
+                                    <li key={n.id}>
+                                        <Link
+                                            href={
+                                                n.kind === "new_upload" && n.videoId
+                                                    ? `/watch/${n.videoId}`
+                                                    : n.kind === "comment_reply" && n.videoId
+                                                      ? `/watch/${n.videoId}#comment-${n.commentId ?? ""}`
+                                                      : "/"
+                                            }
+                                            onClick={() => {
+                                                if (!n.readAt) markRead.mutate({ id: n.id });
+                                                setOpen(false);
+                                            }}
+                                            className={cn(
+                                                "flex items-start gap-3 px-4 py-3 transition hover:bg-accent",
+                                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                                !n.readAt && "bg-accent/40",
+                                            )}
+                                        >
+                                            <UserAvatar user={avatarUser} size={36} />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm leading-snug">{headline}</p>
+                                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                                    {formatRelativeTime(n.createdAt)}
+                                                </p>
+                                            </div>
+                                        </Link>
+                                    </li>
+                                );
+                            })}
                         </ul>
                     )}
                 </ScrollArea>

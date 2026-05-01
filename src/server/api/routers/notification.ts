@@ -1,8 +1,12 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, isNull, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 
+import { gravatarHash } from "@/lib/gravatar";
+import { user as userTable } from "@/server/db/schema/auth";
+import { channels } from "@/server/db/schema/channels";
 import { notifications } from "@/server/db/schema/notifications";
+import { comments } from "@/server/db/schema/social";
 
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
@@ -47,7 +51,93 @@ export const notificationRouter = createTRPCRouter({
                 .limit(limit + 1);
 
             const hasMore = rows.length > limit;
-            const items = hasMore ? rows.slice(0, limit) : rows;
+            const baseItems = hasMore ? rows.slice(0, limit) : rows;
+
+            // Hydrate actor identity so the bell can render an avatar:
+            // - new_upload  -> the channel that uploaded (channel name + avatarPath)
+            // - comment_reply -> the user who replied (name + image + gravatarHash)
+            // We fetch in two batches keyed on distinct ids; the bell list is
+            // capped at 50 so this stays cheap. Channel avatars are explicit
+            // uploads, not gravatar — UserAvatar still falls back to initials
+            // if neither image nor hash is set.
+            const channelIds = Array.from(
+                new Set(
+                    baseItems.filter((r) => r.kind === "new_upload" && r.channelId).map((r) => r.channelId as string),
+                ),
+            );
+            const commentIds = Array.from(
+                new Set(
+                    baseItems
+                        .filter((r) => r.kind === "comment_reply" && r.commentId)
+                        .map((r) => r.commentId as string),
+                ),
+            );
+
+            const [channelRows, replyRows] = await Promise.all([
+                channelIds.length
+                    ? ctx.db
+                          .select({
+                              id: channels.id,
+                              name: channels.name,
+                              handle: channels.handle,
+                              avatarPath: channels.avatarPath,
+                          })
+                          .from(channels)
+                          .where(inArray(channels.id, channelIds))
+                    : Promise.resolve([]),
+                commentIds.length
+                    ? ctx.db
+                          .select({
+                              commentId: comments.id,
+                              authorId: userTable.id,
+                              authorName: userTable.name,
+                              authorImage: userTable.image,
+                              authorEmail: userTable.email,
+                          })
+                          .from(comments)
+                          .leftJoin(userTable, eq(userTable.id, comments.authorId))
+                          .where(inArray(comments.id, commentIds))
+                    : Promise.resolve([]),
+            ]);
+
+            const channelById = new Map(channelRows.map((c) => [c.id, c]));
+            const replyByCommentId = new Map(replyRows.map((r) => [r.commentId, r]));
+
+            const items = baseItems.map((row) => {
+                if (row.kind === "new_upload" && row.channelId) {
+                    const ch = channelById.get(row.channelId);
+                    return {
+                        ...row,
+                        actor: ch
+                            ? {
+                                  kind: "channel" as const,
+                                  name: ch.name,
+                                  handle: ch.handle,
+                                  avatarPath: ch.avatarPath,
+                                  channelId: ch.id,
+                              }
+                            : null,
+                    };
+                }
+                if (row.kind === "comment_reply" && row.commentId) {
+                    const reply = replyByCommentId.get(row.commentId);
+                    return {
+                        ...row,
+                        actor:
+                            reply && reply.authorId
+                                ? {
+                                      kind: "user" as const,
+                                      name: reply.authorName,
+                                      image: reply.authorImage,
+                                      // md5(email) — never ship the raw address.
+                                      gravatarHash: reply.authorEmail ? gravatarHash(reply.authorEmail) : null,
+                                  }
+                                : null,
+                    };
+                }
+                return { ...row, actor: null };
+            });
+
             const last = items[items.length - 1];
             const nextCursor = hasMore && last ? { createdAt: last.createdAt, id: last.id } : null;
 
