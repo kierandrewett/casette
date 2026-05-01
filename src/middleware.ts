@@ -43,17 +43,28 @@ const hasSessionCookie = (req: NextRequest): boolean => COOKIE_NAMES.some((name)
 export async function middleware(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl;
 
-    const mode = await getPrivacyMode();
-
-    if (mode === "public") {
-        return NextResponse.next();
-    }
-
+    // Cheap pathname checks come first: any always-allowed route exits the
+    // middleware without touching the privacy-mode DB query at all. This is
+    // what was making /api/auth/get-session sit on a 5s artificial delay —
+    // every cold request was awaiting a Postgres round-trip from the
+    // middleware bundle before doing anything else.
     if (isAlwaysAllowed(pathname)) {
         return NextResponse.next();
     }
 
+    // Authenticated viewers always pass through. We resolve the cookie
+    // before consulting site privacy mode so the common signed-in case
+    // never pays the DB hit.
     if (hasSessionCookie(req)) {
+        return NextResponse.next();
+    }
+
+    // Anonymous viewer on a non-allowed path. Now we need to know whether
+    // the site is public, login-required, or login-only. The lookup is
+    // memoised in-process for 30 s.
+    const mode = await getPrivacyMode();
+
+    if (mode === "public") {
         return NextResponse.next();
     }
 
