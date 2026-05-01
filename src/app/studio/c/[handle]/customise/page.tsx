@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ChannelCustomiseForm } from "@/components/studio/ChannelCustomiseForm";
 import { QuotaPanel } from "@/components/studio/QuotaPanel";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/server";
 
 type Props = {
@@ -58,46 +58,54 @@ const CustomiseChannelPage = async ({ params }: Props) => {
     }
 
     return (
-        <main className="mx-auto max-w-3xl px-4 py-10">
-            {/* Page header */}
-            <div className="mb-8 flex items-center gap-4">
-                <Link
-                    href={`/studio/c/${handle}`}
-                    className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-                >
-                    &#8592; Studio
-                </Link>
-            </div>
-
-            <div className="mb-8">
+        <div className="mx-auto max-w-3xl space-y-6">
+            <header>
                 <h1 className="text-2xl font-semibold tracking-tight">Customise channel</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    Update your channel&apos;s avatar, banner, and description.
+                    Update your channel&apos;s avatar, banner, name, and description.
                 </p>
-            </div>
+            </header>
 
-            <ChannelCustomiseForm
-                channelId={channel.id}
-                handle={channel.handle}
-                initialName={channel.name}
-                initialDescription={channel.description}
-                avatarUrl={avatarUrl}
-                bannerUrl={bannerUrl}
-            />
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Branding &amp; description</CardTitle>
+                    <CardDescription>
+                        These appear on your public channel page and in cards across the site.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ChannelCustomiseForm
+                        channelId={channel.id}
+                        handle={channel.handle}
+                        initialName={channel.name}
+                        initialDescription={channel.description}
+                        avatarUrl={avatarUrl}
+                        bannerUrl={bannerUrl}
+                    />
+                </CardContent>
+            </Card>
 
             {/* Quota + auto-prune — owner only */}
             {membership.role === "owner" && usageData && (
-                <div className="mt-12 border-t border-border pt-10">
-                    <h2 className="mb-6 text-lg font-semibold">Storage &amp; retention</h2>
-                    <QuotaPanel
-                        channelId={channel.id}
-                        initialUsed={usageData.used}
-                        initialQuota={usageData.quota}
-                        initialAutoPruneDays={usageData.autoPruneDays}
-                    />
-                </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Storage &amp; retention</CardTitle>
+                        <CardDescription>
+                            Optional disk quota and auto-prune window for older uploads. Auto-prune runs nightly; raw
+                            sources older than the threshold are removed while HLS variants and metadata stay.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <QuotaPanel
+                            channelId={channel.id}
+                            initialUsed={usageData.used}
+                            initialQuota={usageData.quota}
+                            initialAutoPruneDays={usageData.autoPruneDays}
+                        />
+                    </CardContent>
+                </Card>
             )}
-        </main>
+        </div>
     );
 };
 
