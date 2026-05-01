@@ -14,12 +14,12 @@ interface VideoGridProps {
     emptySlot?: React.ReactNode;
 }
 
-// Responsive grid: 1 col mobile → 2 sm → 3 lg → 4 xl → 5 2xl → 6 3xl → 7 4xl
-// → 8 5xl. The ultra-wide rungs (3xl/4xl/5xl) are custom screens declared in
-// tailwind.config.ts; without them an ultra-wide monitor would leave a vast
-// gutter when the page wraps the grid in a centred container.
-//
-// All column variants are statically present so Tailwind can tree-shake correctly.
+// Auto-fill responsive grid: every column is at least 240px wide and fills
+// the available track. The grid grows from 1 column at narrow widths to as
+// many as the viewport allows on ultra-wide monitors, without leaving a
+// gutter at any size. Replaces the fixed `xl:grid-cols-N` ladder, which
+// stopped at 8 cols at 3440px and looked thin on monitors that fell
+// between breakpoints.
 export const VideoGrid = ({
     videos,
     progress,
@@ -28,10 +28,7 @@ export const VideoGrid = ({
     className,
     emptySlot,
 }: VideoGridProps) => {
-    const gridClass = cn(
-        "grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-7 5xl:grid-cols-8",
-        className,
-    );
+    const gridClass = cn("grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-x-4 gap-y-6", className);
 
     if (loading) {
         return (
