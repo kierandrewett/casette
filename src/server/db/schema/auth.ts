@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 // Better-Auth core tables. Column shapes follow the official Better-Auth
 // Drizzle adapter (v1.x). If we bump Better-Auth, regenerate with
@@ -20,81 +20,114 @@ export const user = pgTable("user", {
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const session = pgTable("session", {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-        .notNull()
-        .references(() => user.id, { onDelete: "cascade" }),
-    token: text("token").notNull().unique(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    ipAddress: text("ip_address"),
-    userAgent: text("user_agent"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const session = pgTable(
+    "session",
+    {
+        id: text("id").primaryKey(),
+        userId: text("user_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+        token: text("token").notNull().unique(),
+        expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+        ipAddress: text("ip_address"),
+        userAgent: text("user_agent"),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    },
+    (t) => ({
+        userIdx: index("session_user_idx").on(t.userId),
+        expiresIdx: index("session_expires_idx").on(t.expiresAt),
+    }),
+);
 
 // account holds credential records and OAuth-link records. For email+password
 // auth, providerId='credential' and password is the hashed password.
-export const account = pgTable("account", {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-        .notNull()
-        .references(() => user.id, { onDelete: "cascade" }),
-    accountId: text("account_id").notNull(),
-    providerId: text("provider_id").notNull(),
-    accessToken: text("access_token"),
-    refreshToken: text("refresh_token"),
-    idToken: text("id_token"),
-    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
-    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
-    scope: text("scope"),
-    password: text("password"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const account = pgTable(
+    "account",
+    {
+        id: text("id").primaryKey(),
+        userId: text("user_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+        accountId: text("account_id").notNull(),
+        providerId: text("provider_id").notNull(),
+        accessToken: text("access_token"),
+        refreshToken: text("refresh_token"),
+        idToken: text("id_token"),
+        accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+        refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+        scope: text("scope"),
+        password: text("password"),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    },
+    (t) => ({
+        userIdx: index("account_user_idx").on(t.userId),
+        providerIdx: index("account_provider_idx").on(t.providerId, t.accountId),
+    }),
+);
 
-export const verification = pgTable("verification", {
-    id: text("id").primaryKey(),
-    identifier: text("identifier").notNull(),
-    value: text("value").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const verification = pgTable(
+    "verification",
+    {
+        id: text("id").primaryKey(),
+        identifier: text("identifier").notNull(),
+        value: text("value").notNull(),
+        expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    },
+    (t) => ({
+        identifierIdx: index("verification_identifier_idx").on(t.identifier),
+    }),
+);
 
 // ---------------------------------------------------------------------------
 // Passkey plugin tables (@better-auth/passkey)
 // ---------------------------------------------------------------------------
 
-export const passkey = pgTable("passkey", {
-    id: text("id").primaryKey(),
-    name: text("name"),
-    publicKey: text("public_key").notNull(),
-    userId: text("user_id")
-        .notNull()
-        .references(() => user.id, { onDelete: "cascade" }),
-    credentialID: text("credential_id").notNull(),
-    counter: integer("counter").notNull(),
-    deviceType: text("device_type").notNull(),
-    backedUp: boolean("backed_up").notNull(),
-    transports: text("transports"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-    aaguid: text("aaguid"),
-});
+export const passkey = pgTable(
+    "passkey",
+    {
+        id: text("id").primaryKey(),
+        name: text("name"),
+        publicKey: text("public_key").notNull(),
+        userId: text("user_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+        credentialID: text("credential_id").notNull(),
+        counter: integer("counter").notNull(),
+        deviceType: text("device_type").notNull(),
+        backedUp: boolean("backed_up").notNull(),
+        transports: text("transports"),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+        aaguid: text("aaguid"),
+    },
+    (t) => ({
+        userIdx: index("passkey_user_idx").on(t.userId),
+        credentialIdx: uniqueIndex("passkey_credential_idx").on(t.credentialID),
+    }),
+);
 
 // ---------------------------------------------------------------------------
 // Two-factor plugin table (better-auth/plugins twoFactor)
 // ---------------------------------------------------------------------------
 
-export const twoFactor = pgTable("two_factor", {
-    id: text("id").primaryKey(),
-    secret: text("secret").notNull(),
-    backupCodes: text("backup_codes").notNull(),
-    userId: text("user_id")
-        .notNull()
-        .references(() => user.id, { onDelete: "cascade" }),
-    verified: boolean("verified").default(true),
-});
+export const twoFactor = pgTable(
+    "two_factor",
+    {
+        id: text("id").primaryKey(),
+        secret: text("secret").notNull(),
+        backupCodes: text("backup_codes").notNull(),
+        userId: text("user_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+        verified: boolean("verified").default(true),
+    },
+    (t) => ({
+        userIdx: uniqueIndex("two_factor_user_idx").on(t.userId),
+    }),
+);
 
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
