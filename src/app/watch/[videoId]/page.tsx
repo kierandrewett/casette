@@ -93,7 +93,7 @@ export default async function WatchPage({ params, searchParams }: WatchPageProps
     const publishedAtStr = video.publishedAt ? formatRelativeTime(video.publishedAt) : null;
 
     return (
-        <AppShell>
+        <AppShell hideSidebar>
             {/* Update browser tab title to video title while on the watch page. */}
             <DocumentTitle videoTitle={video.title} title="cassette" />
 

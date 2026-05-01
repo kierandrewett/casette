@@ -1,14 +1,23 @@
+import { eq } from "drizzle-orm";
+
+import { cn } from "@/lib/utils";
 import { getSession } from "@/lib/session";
 import { db } from "@/server/db/client";
 import { channels } from "@/server/db/schema";
 import { adminGrants } from "@/server/db/schema/admin";
-import { eq } from "drizzle-orm";
+
 import { AppHeader, type AppHeaderUser } from "./AppHeader";
 import { LeftRail, type UserChannel } from "./LeftRail";
 import { MobileNav } from "./MobileNav";
 
 interface AppShellProps {
     children: React.ReactNode;
+    /**
+     * When true, the LeftRail is omitted and the main content uses the full
+     * viewport width. Used by /watch where the player wants the horizontal
+     * real estate and the rail is just noise.
+     */
+    hideSidebar?: boolean;
 }
 
 // Server component: fetches session + user channels, then renders the
@@ -16,7 +25,7 @@ interface AppShellProps {
 // The left rail CSS variable offsets are defined in globals.css:
 //   --rail-width: 220px
 //   --rail-collapsed-width: 60px
-const AppShell = async ({ children }: AppShellProps) => {
+const AppShell = async ({ children, hideSidebar = false }: AppShellProps) => {
     const session = await getSession();
 
     let user: AppHeaderUser | null = null;
@@ -55,13 +64,24 @@ const AppShell = async ({ children }: AppShellProps) => {
         <div className="min-h-full">
             <AppHeader user={user} isAdmin={isAdmin} />
 
-            {/* Left rail: hidden below md, expanded by default above */}
-            <div className="hidden md:block">
-                <LeftRail channels={userChannels} isAdmin={isAdmin} isAuthenticated={!!user} />
-            </div>
+            {/* Left rail: hidden below md, expanded by default above. The
+                /watch page collapses the rail entirely so the player has the
+                full viewport width. */}
+            {!hideSidebar && (
+                <div className="hidden md:block">
+                    <LeftRail channels={userChannels} isAdmin={isAdmin} isAuthenticated={!!user} />
+                </div>
+            )}
 
-            {/* Main content: offset by rail width on md+, full-width on mobile */}
-            <main className="pt-14 transition-[padding] duration-200 md:pl-[var(--rail-width)]" id="main-content">
+            {/* Main content: offset by rail width on md+, full-width on
+                mobile or when the sidebar is hidden. */}
+            <main
+                className={cn(
+                    "pt-14 transition-[padding] duration-200",
+                    !hideSidebar && "md:pl-[var(--rail-width)]",
+                )}
+                id="main-content"
+            >
                 {children}
             </main>
 
