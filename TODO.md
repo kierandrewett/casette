@@ -31,15 +31,29 @@ The plan lives in `PLAN.md`. This file is the live, ticked checklist. A ticked i
 
 ## M2 — Auth + channels
 
-- [ ] Drizzle schema for Better-Auth tables (`user`, `session`, `account`, `verification`, `apikey`)
-- [ ] Drizzle schema for `channels`, `channel_members`
-- [ ] Better-Auth server instance with Drizzle adapter and api-key plugin
-- [ ] Better-Auth catch-all route handler `/api/auth/[...all]`
-- [ ] tRPC context exposes `session` and `user`
-- [ ] `protectedProcedure` and `channelProcedure` middlewares
+Foundation (sequential, landed):
+
+- [x] Drizzle schema for Better-Auth tables (`user`, `session`, `account`, `verification`)
+- [x] Drizzle schema for `channels`, `channel_members`, `api_keys` (channel-scoped)
+- [x] Drizzle schema for `videos`, `video_variants`, `video_captions`, `video_chapters`
+- [x] Drizzle schema for `subscriptions`, `video_likes`, `comments`, `comment_likes`
+- [x] Drizzle schema for `playlists`, `playlist_items`, `watch_history`, `watch_progress`, `view_sessions`
+- [x] Drizzle schema for `notifications`, `transcode_jobs`
+- [x] Drizzle client at `src/server/db/client.ts`; `triggers.sql` for tsvector
+- [x] Better-Auth server instance with Drizzle adapter (no api-key plugin in 1.6, custom `mintApiKey`/`verifyApiKey` in `lib/auth.ts`)
+- [x] Better-Auth catch-all route handler `/api/auth/[...all]`
+- [x] tRPC context, `publicProcedure`, `protectedProcedure`, `channelProcedure`
+- [x] `/api/trpc/[trpc]` route with `health.ping`
+- [x] `instrumentation.ts` boots the worker stub
+- [x] Postgres extensions auto-loaded by docker init; `yarn db:push` succeeds
+- [x] Verified: tRPC `health.ping` round-trip, Better-Auth `sign-up/email` creates user + session + account rows
+
+Parallel work (delegated):
+
 - [ ] tRPC router `channel`: list, byHandle, create, update, listMine, generateApiKey, listApiKeys, revokeApiKey
-- [ ] `/login` and `/register` pages with shadcn forms
-- [ ] First-run seed: bootstrap admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+- [ ] `/login` and `/register` pages (shadcn forms)
+- [ ] `/studio` overview page + `/studio/api-keys` panel
+- [ ] First-run admin seed (`ADMIN_EMAIL` / `ADMIN_PASSWORD`)
 - [ ] Verification: sign-up, sign-in, channel create, key generate (plaintext shown once), key revoke
 
 ## M3 — Upload + transcode

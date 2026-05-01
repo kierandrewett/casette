@@ -12,7 +12,10 @@ const serverSchema = z.object({
     MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(21474836480),
     TRANSCODE_CONCURRENCY: z.coerce.number().int().positive().default(1),
     ENABLE_NVENC: z.coerce.boolean().default(false),
-    ADMIN_EMAIL: z.string().email().optional(),
+    // ADMIN_EMAIL is a bootstrap convenience for the first-run admin seed; it
+    // bypasses Better-Auth's signup flow and is allowed to be a local-only
+    // address like "admin@local" so first boot works on a fresh box.
+    ADMIN_EMAIL: z.string().min(3).optional(),
     ADMIN_PASSWORD: z.string().min(8).optional(),
 });
 
