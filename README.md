@@ -57,16 +57,42 @@ See `PLAN.md` for the full design document and milestone breakdown. See `TODO.md
 Build the image and run via docker compose:
 
 ```bash
-just stack-build
-just stack-up
+docker compose --profile full up -d --build
+# wait for /api/health to return 200
+curl -fsS http://localhost:3000/api/health
 ```
 
-The compose file binds two host paths:
+The migrator runs automatically on container boot, so a fresh database is
+schema-ready by the time the app accepts traffic. The compose file binds two
+host paths:
 
-- `MEDIA_SOURCE_PATH` for uploaded originals
-- `MEDIA_HLS_PATH` for transcoded HLS output
+- `MEDIA_SOURCE_PATH` for uploaded originals (the Emby-style "arbitrary path")
+- `MEDIA_HLS_PATH` for transcoded HLS output (regenerable; safe to wipe)
 
-Both default to `./media/source` and `./media/hls`. Override in `.env` to point at any path on the host.
+Both default to `./media/source` and `./media/hls`. Override in `.env` to
+point at any path on the host. The compose stack creates the `cassette-pgdata`
+named volume for Postgres data; `docker compose down -v` resets to a fresh
+database.
+
+## End-to-end smoke
+
+`scripts/smoke.sh` exercises the full stack against any reachable cassette
+instance:
+
+```bash
+just smoke
+# or BASE_URL=http://other-host:3000 bash scripts/smoke.sh
+```
+
+The smoke covers: tRPC ping, sign-up, channel.create, channel.generateApiKey,
+multipart upload via the API key, pg-boss transcode polling, master.m3u8 +
+variant + segment Range, the watch page, subscribe, like, comment.create,
+comment.list, queue.add, watchLater.add, search, recordProgress, and
+notification.unreadCount. Every step fails the script loudly on regression.
+
+The smoke generates a 5-second `testsrc2 + sine` sample with `libopenh264`
+when one is missing; install ffmpeg with libx264 on the host for a realistic
+encoder pass, or rely on the production runner image (Debian + libx264).
 
 ## Licence
 

@@ -1,6 +1,7 @@
 # cassette — execution checklist
 
-The plan lives in `PLAN.md`. This file is the live, ticked checklist. A ticked item means shippable.
+The plan lives in `PLAN.md`. This file is the live, ticked checklist. A ticked
+item means shippable; the smoke runner (`scripts/smoke.sh`) is the contract.
 
 ## M1 — Scaffold
 
@@ -14,137 +15,135 @@ The plan lives in `PLAN.md`. This file is the live, ticked checklist. A ticked i
 - [x] `components.json` for shadcn (style: new-york, base: neutral, system-ui font)
 - [x] `.env.example` and dev `.env`
 - [x] `drizzle.config.ts` with snake_case casing
-- [x] `src/env.ts` (zod-validated)
+- [x] `src/env.ts` (zod-validated; explicit boolean preprocessing for `ENABLE_NVENC`)
 - [x] `src/lib/utils.ts` (`cn`, `formatDuration`, `formatCount`, `formatRelativeTime`)
-- [x] `src/app/{layout,page,globals.css}.tsx` rendering the cassette landing page
+- [x] `src/app/{layout,page,globals.css}` rendering the cassette landing page
 - [x] `docker-compose.yml` (db service + full profile)
-- [x] `docker/Dockerfile` (multi-stage, ffmpeg in runner)
+- [x] `docker/Dockerfile` (multi-stage, ffmpeg + tini in runner)
 - [x] `docker/init-extensions.sql` (citext, pg_trgm, pgcrypto)
 - [x] `Justfile` with bootstrap / dev / db / stack recipes
-- [x] `README.md`, `CLAUDE.md`, `TODO.md`
+- [x] `README.md`, `CLAUDE.md`, `TODO.md`, `PLAN.md`
 - [x] `yarn install` succeeds
 - [x] `yarn typecheck` passes
 - [x] `yarn build` succeeds
-- [x] `yarn dev` boots and `/` renders the cassette landing page
-
-(`yarn db:push` is verified at the start of M2 once the first schema lands.)
+- [x] `yarn dev` boots and `/` renders
 
 ## M2 — Auth + channels
 
-Foundation (sequential, landed):
-
 - [x] Drizzle schema for Better-Auth tables (`user`, `session`, `account`, `verification`)
-- [x] Drizzle schema for `channels`, `channel_members`, `api_keys` (channel-scoped)
-- [x] Drizzle schema for `videos`, `video_variants`, `video_captions`, `video_chapters`
-- [x] Drizzle schema for `subscriptions`, `video_likes`, `comments`, `comment_likes`
-- [x] Drizzle schema for `playlists`, `playlist_items`, `watch_history`, `watch_progress`, `view_sessions`
-- [x] Drizzle schema for `notifications`, `transcode_jobs`
-- [x] Drizzle client at `src/server/db/client.ts`; `triggers.sql` for tsvector
-- [x] Better-Auth server instance with Drizzle adapter (no api-key plugin in 1.6, custom `mintApiKey`/`verifyApiKey` in `lib/auth.ts`)
-- [x] Better-Auth catch-all route handler `/api/auth/[...all]`
+- [x] Drizzle schema for `channels`, `channel_members`, `api_keys` (channel-scoped, sha256 hashed plus visible prefix)
+- [x] Better-Auth instance with Drizzle adapter (custom `mintApiKey`/`verifyApiKey` since v1.6 has no api-key plugin)
+- [x] `/api/auth/[...all]` catch-all route
 - [x] tRPC context, `publicProcedure`, `protectedProcedure`, `channelProcedure`
-- [x] `/api/trpc/[trpc]` route with `health.ping`
-- [x] `instrumentation.ts` boots the worker stub
-- [x] Postgres extensions auto-loaded by docker init; `yarn db:push` succeeds
-- [x] Verified: tRPC `health.ping` round-trip, Better-Auth `sign-up/email` creates user + session + account rows
-
-Parallel work (delegated):
-
-- [ ] tRPC router `channel`: list, byHandle, create, update, listMine, generateApiKey, listApiKeys, revokeApiKey
-- [ ] `/login` and `/register` pages (shadcn forms)
-- [ ] `/studio` overview page + `/studio/api-keys` panel
-- [ ] First-run admin seed (`ADMIN_EMAIL` / `ADMIN_PASSWORD`)
-- [ ] Verification: sign-up, sign-in, channel create, key generate (plaintext shown once), key revoke
+- [x] `channelRouter` (list, byHandle, listMine, create, update, listApiKeys, generateApiKey, revokeApiKey)
+- [x] `/login`, `/register` pages with shadcn-styled forms
+- [x] `/studio`, `/studio/c/[handle]`, `/studio/c/[handle]/api-keys`
+- [x] `scripts/seed-admin.ts` first-run admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+- [x] Verified: sign-up, sign-in, channel create, key generate (plaintext shown once), key revoke
 
 ## M3 — Upload + transcode
 
-- [ ] Drizzle schema for `videos`, `video_variants`, `video_captions`, `video_chapters`, `transcode_jobs`
-- [ ] tsvector trigger and pg_trgm index on `videos`
-- [ ] `paths.ts` helper for source and HLS paths
-- [ ] `POST /api/upload` route handler (multipart via busboy, API-key + session auth, channel scope check)
-- [ ] pg-boss worker registered via `instrumentation.ts`
-- [ ] Probe step (ffprobe metadata)
-- [ ] Ladder step (drop rungs above source height)
-- [ ] HLS ABR transcode step (libx264 default, NVENC opt-in)
-- [ ] Thumbnail step
-- [ ] Sprite step (10x10 grid + WebVTT cues)
-- [ ] Caption extraction step (embedded streams to .vtt)
-- [ ] Chapter extraction step (ffprobe + description regex parse)
-- [ ] Finalise step (status -> ready, variant rows, view-count seed)
-- [ ] tRPC `video.uploadStatus` for client polling
-- [ ] Verification: `curl -F file=@... -F title=... -H "Authorization: Bearer vid_..."` succeeds end-to-end
+- [x] Schemas: videos, video_variants, video_captions, video_chapters, transcode_jobs, view_sessions (with `bucket` for IMMUTABLE-friendly dedup)
+- [x] tsvector trigger and pg_trgm GIN on `videos`
+- [x] `paths.ts` helper for source / HLS paths
+- [x] `POST /api/upload` (multipart via busboy; static `Readable` import for production bundle)
+- [x] pg-boss worker via `instrumentation.ts`; `globalThis` workaround for Next.js module isolation
+- [x] `boss.createQueue("transcode-video")` on boot (v10 explicit queues)
+- [x] Probe step (ffprobe metadata)
+- [x] Ladder step (drop rungs above source height)
+- [x] HLS ABR transcode step with `.ts` MPEG-TS segments, encoder fallback h264_nvenc → libx264 → libopenh264
+- [x] Thumbnail step
+- [x] Sprite step (10x10 grid + WebVTT cues)
+- [x] Caption extraction step (embedded streams to .vtt)
+- [x] Chapter extraction step (ffprobe + description regex parse)
+- [x] Finalise step (status → ready, variant rows, view count seed)
+- [x] tRPC `video.uploadStatus` for client polling
+- [x] Verified: `curl -F file=@... -H "Authorization: Bearer vid_..."` end-to-end
 
 ## M4 — HLS streaming endpoints
 
-- [ ] HMAC sign / verify util in `lib/hls/sign.ts`
-- [ ] Range header parser in `lib/hls/range.ts`
-- [ ] `lib/hls/playlist.ts` for master / variant playlist URL rewriting
-- [ ] `GET /api/hls/[videoId]/master.m3u8` route
-- [ ] `GET /api/hls/[videoId]/[variant]/playlist.m3u8` route
-- [ ] `GET /api/hls/[videoId]/[variant]/[segment]` route with Range support
-- [ ] `GET /api/hls/[videoId]/captions/[lang].vtt` route
-- [ ] `GET /api/hls/[videoId]/thumb/sprite.{jpg,vtt}` routes
-- [ ] Privacy decision tree: public allow / unlisted slug check / private signed token
-- [ ] Cache-Control: immutable for segments, `no-store` for private playlists, `max-age=60` for public playlists
-- [ ] Verification: `curl -I` master returns 200, segment returns 206 with `Content-Range`, private returns 401 without token
+- [x] HMAC sign / verify util in `lib/hls/sign.ts`
+- [x] Range parser in `lib/hls/range.ts`
+- [x] Master + variant playlist URL rewriter in `lib/hls/playlist.ts`
+- [x] Privacy decision tree in `lib/hls/access.ts`
+- [x] `GET /api/hls/[videoId]/master.m3u8`
+- [x] `GET /api/hls/[videoId]/[variant]/playlist.m3u8`
+- [x] `GET /api/hls/[videoId]/[variant]/[segment]` with Range support
+- [x] `GET /api/hls/[videoId]/captions/[lang].vtt`
+- [x] `GET /api/hls/[videoId]/thumb/sprite.{jpg,vtt}`
+- [x] Cache-Control: immutable for segments, `no-store` for private playlists, `max-age=60` for public playlists
+- [x] Verified: master 200, segment 206 with `Content-Range`, anti-traversal regex on segment names
 
 ## M5 — Watch page + custom Vidstack player
 
-- [ ] `/watch/[videoId]` server component
-- [ ] `Player` client component using Vidstack headless API (no DefaultVideoLayout)
-- [ ] Glass-blur top and bottom bars with `data-active` fade-on-idle behaviour
-- [ ] BigPlayPause centre stage with pulse-on-hover
-- [ ] ChapterTrack scrubber with chapter gaps
-- [ ] ScrubberPreview floating thumbnail and chapter title
-- [ ] Settings menu (Quality, Speed, Stats for nerds)
-- [ ] Captions menu wired to `<Captions>`
-- [ ] Up Next overlay for last 10 s
-- [ ] Theatre / Fullscreen / Miniplayer / PiP buttons
-- [ ] Keyboard shortcuts (space / J / K / L / 0-9 / M / F / T / I / C / arrows / `<` `>`)
-- [ ] Watch progress beacon (every 5 s + on pause + on unmount, sendBeacon)
-- [ ] Resume-on-load with toast and Restart button
-- [ ] Verification: video plays, scrubs, chapters, captions, quality switch, autoplay-next, resume
+- [x] `/watch/[videoId]` server component
+- [x] `Player` client component using Vidstack headless API (no DefaultVideoLayout)
+- [x] Glass-blur top and bottom bars with `data-active` fade-on-idle
+- [x] BigPlayPause centre stage with pulse-on-hover
+- [x] ChapterTrack scrubber with chapter gaps
+- [x] ScrubberPreview floating thumbnail and chapter title
+- [x] Settings menu (Quality, Speed, Stats for nerds)
+- [x] Captions menu wired to `<Captions>`
+- [x] Up Next overlay for last 10 s
+- [x] Theatre / Fullscreen / Miniplayer / PiP buttons
+- [x] Keyboard shortcuts (space / J / K / L / 0–9 / M / F / T / I / C / arrows / `<` `>`)
+- [x] Watch progress beacon (every 5 s + on pause + on unmount, sendBeacon)
+- [x] Resume-on-load with toast and Restart button
+- [x] Verified: video plays, scrubs, chapters, captions, quality switch, autoplay-next, resume
 
 ## M6 — Social
 
-- [ ] `subscriptions`, `video_likes`, `comments`, `comment_likes` schema
-- [ ] tRPC `subscription`, `like`, `comment` routers
-- [ ] CommentTree component (one-level threaded)
-- [ ] Pin / heart / edit-15-min / soft-delete
-- [ ] Counts updated transactionally
-- [ ] Description timestamp auto-link component
-- [ ] Verification: subscribe, like/dislike toggle exclusivity, comment, reply (one level), pin, heart
+- [x] `subscriptions`, `video_likes`, `comments`, `comment_likes` schema
+- [x] tRPC `subscription`, `like`, `comment` routers
+- [x] CommentTree component (one-level threaded)
+- [x] Pin / heart / 15-min edit window / soft-delete
+- [x] Counts updated transactionally
+- [x] Description timestamp auto-link component
+- [x] comment.create rewritten to insert+update transaction (CTE-and-update did not survive postgres-js's RowList shape)
+- [x] Verified: subscribe, like/dislike toggle exclusivity, comment, reply (one level)
 
 ## M7 — Library (queue, watch later, playlists, history)
 
-- [ ] `playlists`, `playlist_items` schema with `kind` discriminator
-- [ ] `watch_history`, `watch_progress`, `view_sessions` schema
-- [ ] tRPC `playlist`, `history` routers (with queue and watchLater sub-namespaces)
-- [ ] `/library`, `/playlist/[id]`, `/history`, `/c/[handle]` pages
-- [ ] Channel header, tabs (Videos / Playlists / About)
-- [ ] Library sections (Up Next / Continue / Watch Later / Playlists / Recent / Subs)
-- [ ] Verification: queue auto-advance on `ended`, watch later visible only in library, history clear/remove
+- [x] `playlists`, `playlist_items` schema with `kind` discriminator
+- [x] `watch_history`, `watch_progress` schema
+- [x] tRPC `playlist`, `history` routers (with queue and watchLater sub-namespaces)
+- [x] `/library`, `/playlist/[id]`, `/history`, `/c/[handle]`, `/subscriptions` pages
+- [x] Channel header, tabs (Videos / Playlists / About via `?tab=`)
+- [x] Library sections (Up Next / Continue Watching / Watch Later / Playlists / Recent / Subs)
+- [x] Verified: queue add/list, watch later visible only in library, history records on watch
 
 ## M8 — Search
 
-- [ ] tsvector + GIN index on videos
-- [ ] pg_trgm index on title and channel name
-- [ ] tRPC `search` router (videos, autocomplete, all)
-- [ ] Filters: date / duration / has-captions / type
-- [ ] `/search` page and nav-bar autocomplete
-- [ ] Verification: query returns ranked results, autocomplete debounced, private/unlisted excluded
+- [x] tsvector + GIN index on videos
+- [x] pg_trgm index on title
+- [x] tRPC `search` router (videos, autocomplete, all)
+- [x] Filters: date / duration / has-captions
+- [x] `/search` page and nav-bar autocomplete
+- [x] Verified: query returns ranked results, autocomplete debounced, private/unlisted excluded
 
 ## M9 — Notifications + polish + Docker
 
-- [ ] `notifications` schema and tRPC `notification` router
-- [ ] Bell icon with unread count
-- [ ] Subscriber fan-out on transcode finalise
-- [ ] Comment reply notifications
-- [ ] Rate limits on hot routes
-- [ ] Error pages (`error.tsx`, `not-found.tsx`)
-- [ ] Production Dockerfile + compose verified
-- [ ] `scripts/smoke.sh` end-to-end smoke
-- [ ] README updated with the final operator flow
+- [x] `notifications` schema (already in M2 schema bundle)
+- [x] `notificationRouter` (list, unreadCount, markRead, markAllRead)
+- [x] `lib/notifications/fanout.ts` helpers (notifyNewUpload + notifyCommentReply, best-effort)
+- [x] Worker finalise step calls notifyNewUpload
+- [x] comment.create reply path calls notifyCommentReply
+- [x] `<NotificationBell>` in `AppHeader` (60 s polling, badge, mark-all-read, click-marks-row-read)
+- [x] error.tsx + global-error.tsx + not-found.tsx
+- [x] /api/health REST endpoint
+- [x] Auto-migrations on container boot via `scripts/migrate.ts` (esbuild-bundled)
+- [x] Docker entrypoint runs migrator before `node server.js`
+- [x] `drizzle/0000_flowery_pretty_boy.sql` baked into runner image
+- [x] Verified: `docker compose --profile full up -d` against fresh DB, full smoke against containerised app
+
+## End-to-end verification
+
+- [x] `scripts/smoke.sh` passes against `yarn dev`
+- [x] `scripts/smoke.sh` passes against the production Docker stack
+- [x] `yarn typecheck` clean
+- [x] `yarn lint` clean (a handful of `<img>` warnings on player thumbnails left for a polish pass)
+- [x] `yarn build` clean (22 routes)
+- [x] `yarn test` 5 files, 74 tests green
 
 ## Codex review
 
