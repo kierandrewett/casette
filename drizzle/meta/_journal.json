@@ -29,6 +29,20 @@
       "when": 1777640678407,
       "tag": "0003_premium_johnny_blaze",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777645763202,
+      "tag": "0004_dashing_yellowjacket",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777645896464,
+      "tag": "0005_nosy_screwball",
+      "breakpoints": true
     }
   ]
 }

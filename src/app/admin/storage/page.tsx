@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 
 import { requireAdmin } from "@/lib/admin";
 import { trpc } from "@/lib/trpc/server";
+import { BandwidthSummary } from "@/components/admin/BandwidthSummary";
 import { StatCard } from "@/components/admin/StatCard";
 import { JanitorButton } from "@/components/admin/JanitorButton";
 
@@ -65,6 +66,15 @@ export default async function AdminStoragePage() {
                     </div>
                 </section>
             )}
+
+            {/* Bandwidth metering */}
+            <section className="space-y-3">
+                <h2 className="text-lg font-semibold">Bandwidth</h2>
+                <p className="text-sm text-muted-foreground">
+                    HLS segment bytes served per channel, accumulated from live traffic.
+                </p>
+                <BandwidthSummary />
+            </section>
 
             {/* Janitor actions */}
             <section className="space-y-3">

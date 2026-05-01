@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Users, Video, HardDrive, Cog, Cpu } from "lucide-react";
+import { BarChart3, ClipboardList, Users, Video, HardDrive, Cog, Cpu } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
     { href: "/admin", label: "Overview", icon: BarChart3, exact: true },
     { href: "/admin/users", label: "Users", icon: Users, exact: false },
+    { href: "/admin/audit", label: "Audit", icon: ClipboardList, exact: false },
     { href: "/admin/videos", label: "Videos", icon: Video, exact: false },
     { href: "/admin/storage", label: "Storage", icon: HardDrive, exact: false },
     { href: "/admin/jobs", label: "Jobs", icon: Cpu, exact: false },

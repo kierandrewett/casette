@@ -2,17 +2,20 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, ilike, isNull, or, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNull, lt, or, sql, sum } from "drizzle-orm";
 import { z } from "zod";
 
 import { cleanupVideoFiles } from "@/lib/cleanup";
 import { paths } from "@/lib/paths";
 import { invalidateSiteConfigCache } from "@/lib/site-config";
+import { recordAudit } from "@/lib/audit";
 import { adminGrants } from "@/server/db/schema/admin";
+import { auditLogs } from "@/server/db/schema/audit";
 import { session, user } from "@/server/db/schema/auth";
 import { siteConfig, privacyModeEnum } from "@/server/db/schema/site";
 import { channelMembers, channels } from "@/server/db/schema/channels";
 import { transcodeJobs } from "@/server/db/schema/jobs";
+import { channelBandwidthDaily } from "@/server/db/schema/metrics";
 import { comments } from "@/server/db/schema/social";
 import { videos } from "@/server/db/schema/videos";
 import { adminProcedure, createTRPCRouter, publicProcedure } from "../trpc";
@@ -199,6 +202,14 @@ const usersRouter = createTRPCRouter({
                     grantedBy: ctx.user.id,
                 })
                 .onConflictDoNothing({ target: adminGrants.userId });
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "user.promote",
+                targetType: "user",
+                targetId: input.userId,
+                details: { grantedBy: ctx.user.id },
+                headers: ctx.headers,
+            });
             return { ok: true };
         }),
 
@@ -215,6 +226,13 @@ const usersRouter = createTRPCRouter({
                 });
             }
             await ctx.db.delete(adminGrants).where(eq(adminGrants.userId, input.userId));
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "user.demote",
+                targetType: "user",
+                targetId: input.userId,
+                headers: ctx.headers,
+            });
             return { ok: true };
         }),
 
@@ -224,7 +242,21 @@ const usersRouter = createTRPCRouter({
             if (input.userId === ctx.user.id) {
                 throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot delete your own account." });
             }
+            const userRows = await ctx.db
+                .select({ email: user.email, name: user.name })
+                .from(user)
+                .where(eq(user.id, input.userId))
+                .limit(1);
+            const deletedUser = userRows[0];
             await ctx.db.delete(user).where(eq(user.id, input.userId));
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "user.delete",
+                targetType: "user",
+                targetId: input.userId,
+                details: { email: deletedUser?.email ?? null, name: deletedUser?.name ?? null },
+                headers: ctx.headers,
+            });
             return { ok: true };
         }),
 
@@ -232,6 +264,13 @@ const usersRouter = createTRPCRouter({
         .input(z.object({ userId: z.string() }))
         .mutation(async ({ ctx, input }) => {
             await ctx.db.delete(session).where(eq(session.userId, input.userId));
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "user.signOutAll",
+                targetType: "user",
+                targetId: input.userId,
+                headers: ctx.headers,
+            });
             return { ok: true };
         }),
 });
@@ -300,6 +339,7 @@ const videosRouter = createTRPCRouter({
                 .select({
                     channelId: videos.channelId,
                     sourcePath: videos.sourcePath,
+                    title: videos.title,
                 })
                 .from(videos)
                 .where(eq(videos.id, input.videoId))
@@ -315,6 +355,14 @@ const videosRouter = createTRPCRouter({
             const channelHandle = channelRows[0]?.handle ?? "_orphan";
 
             await ctx.db.delete(videos).where(eq(videos.id, input.videoId));
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "video.delete",
+                targetType: "video",
+                targetId: input.videoId,
+                details: { title: video.title, channelId: video.channelId },
+                headers: ctx.headers,
+            });
 
             void cleanupVideoFiles({
                 videoId: input.videoId,
@@ -380,6 +428,14 @@ const jobsRouter = createTRPCRouter({
                     .set({ pgbossJobId })
                     .where(eq(transcodeJobs.videoId, input.videoId));
             }
+
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "transcodeJob.retry",
+                targetType: "job",
+                targetId: input.videoId,
+                headers: ctx.headers,
+            });
 
             return { ok: true };
         }),
@@ -617,6 +673,16 @@ const storageRouter = createTRPCRouter({
                 log.push(`source pass: cannot read ${paths.sourceRoot}`);
             }
 
+            const summary = { hlsKept, hlsRemoved, assetsRemoved, sourceKept, sourceRemoved };
+
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "janitor.run",
+                targetType: "site",
+                details: { apply, summary },
+                headers: ctx.headers,
+            });
+
             return {
                 apply,
                 hlsKept,
@@ -702,6 +768,13 @@ const siteConfigRouter = createTRPCRouter({
     set: adminProcedure
         .input(z.object({ privacyMode: z.enum(privacyModeEnum.enumValues) }))
         .mutation(async ({ ctx, input }) => {
+            const existing = await ctx.db
+                .select({ privacyMode: siteConfig.privacyMode })
+                .from(siteConfig)
+                .where(eq(siteConfig.id, 1))
+                .limit(1);
+            const from = existing[0]?.privacyMode ?? null;
+
             await ctx.db
                 .insert(siteConfig)
                 .values({ id: 1, privacyMode: input.privacyMode, updatedById: ctx.user.id, updatedAt: new Date() })
@@ -710,7 +783,159 @@ const siteConfigRouter = createTRPCRouter({
                     set: { privacyMode: input.privacyMode, updatedById: ctx.user.id, updatedAt: new Date() },
                 });
             invalidateSiteConfigCache();
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "siteConfig.set",
+                targetType: "site",
+                details: { from, to: input.privacyMode },
+                headers: ctx.headers,
+            });
             return { ok: true };
+        }),
+});
+
+// ---------------------------------------------------------------------------
+// Bandwidth sub-router
+// ---------------------------------------------------------------------------
+
+const bandwidthRouter = createTRPCRouter({
+    summary: adminProcedure
+        .input(z.object({ days: z.number().int().positive().max(365).default(14) }))
+        .query(async ({ ctx, input }) => {
+            const minBucket = Math.floor(Date.now() / 86_400_000) - input.days + 1;
+
+            const rows = await ctx.db
+                .select({
+                    channelId: channelBandwidthDaily.channelId,
+                    channelHandle: channels.handle,
+                    channelName: channels.name,
+                    totalBytes: sum(channelBandwidthDaily.bytes),
+                })
+                .from(channelBandwidthDaily)
+                .innerJoin(channels, eq(channelBandwidthDaily.channelId, channels.id))
+                .where(sql`${channelBandwidthDaily.bucket} >= ${minBucket}`)
+                .groupBy(channelBandwidthDaily.channelId, channels.handle, channels.name)
+                .orderBy(desc(sum(channelBandwidthDaily.bytes)))
+                .limit(20);
+
+            let grandTotal = 0;
+            const channelRows = rows.map((r) => {
+                const bytes = Number(r.totalBytes ?? 0);
+                grandTotal += bytes;
+                return {
+                    channelId: r.channelId,
+                    channelHandle: r.channelHandle,
+                    channelName: r.channelName,
+                    bytes,
+                };
+            });
+
+            return { channels: channelRows, grandTotal, days: input.days };
+        }),
+
+    series: adminProcedure
+        .input(
+            z.object({
+                channelId: z.string().uuid(),
+                days: z.number().int().positive().max(365).default(14),
+            }),
+        )
+        .query(async ({ ctx, input }) => {
+            const minBucket = Math.floor(Date.now() / 86_400_000) - input.days + 1;
+
+            const rows = await ctx.db
+                .select({
+                    bucket: channelBandwidthDaily.bucket,
+                    bytes: channelBandwidthDaily.bytes,
+                })
+                .from(channelBandwidthDaily)
+                .where(
+                    and(
+                        eq(channelBandwidthDaily.channelId, input.channelId),
+                        sql`${channelBandwidthDaily.bucket} >= ${minBucket}`,
+                    ),
+                )
+                .orderBy(channelBandwidthDaily.bucket);
+
+            return rows.map((r) => ({ bucket: r.bucket, bytes: Number(r.bytes) }));
+        }),
+});
+
+// ---------------------------------------------------------------------------
+// Audit sub-router
+// ---------------------------------------------------------------------------
+
+const auditRouter = createTRPCRouter({
+    list: adminProcedure
+        .input(
+            z.object({
+                cursor: z
+                    .object({ createdAt: z.string().datetime(), id: z.string().uuid() })
+                    .optional(),
+                limit: z.number().int().positive().max(200).default(50),
+                action: z.string().optional(),
+                actorId: z.string().optional(),
+                targetType: z.string().optional(),
+            }),
+        )
+        .query(async ({ ctx, input }) => {
+            const { cursor, limit, action, actorId, targetType } = input;
+
+            const actor = user;
+            const actorAlias = {
+                id: actor.id,
+                name: actor.name,
+                email: actor.email,
+            };
+
+            const cursorCondition = cursor
+                ? or(
+                      lt(auditLogs.createdAt, new Date(cursor.createdAt)),
+                      and(
+                          eq(auditLogs.createdAt, new Date(cursor.createdAt)),
+                          lt(auditLogs.id, cursor.id),
+                      ),
+                  )
+                : undefined;
+
+            const whereClause = and(
+                action ? sql`${auditLogs.action} = ${action}` : undefined,
+                actorId ? eq(auditLogs.actorId, actorId) : undefined,
+                targetType ? sql`${auditLogs.targetType} = ${targetType}` : undefined,
+                cursorCondition,
+            );
+
+            const rows = await ctx.db
+                .select({
+                    id: auditLogs.id,
+                    actorId: auditLogs.actorId,
+                    actorName: actor.name,
+                    actorEmail: actor.email,
+                    action: auditLogs.action,
+                    targetType: auditLogs.targetType,
+                    targetId: auditLogs.targetId,
+                    details: auditLogs.details,
+                    ipAddress: auditLogs.ipAddress,
+                    userAgent: auditLogs.userAgent,
+                    createdAt: auditLogs.createdAt,
+                })
+                .from(auditLogs)
+                .leftJoin(actor, eq(auditLogs.actorId, actorAlias.id))
+                .where(whereClause)
+                .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+                .limit(limit + 1);
+
+            const hasMore = rows.length > limit;
+            const items = hasMore ? rows.slice(0, limit) : rows;
+            const last = items[items.length - 1];
+
+            return {
+                items,
+                nextCursor:
+                    hasMore && last
+                        ? { createdAt: last.createdAt.toISOString(), id: last.id }
+                        : null,
+            };
         }),
 });
 
@@ -725,4 +950,6 @@ export const adminRouter = createTRPCRouter({
     jobs: jobsRouter,
     storage: storageRouter,
     siteConfig: siteConfigRouter,
+    bandwidth: bandwidthRouter,
+    audit: auditRouter,
 });

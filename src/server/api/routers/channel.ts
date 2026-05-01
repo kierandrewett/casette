@@ -3,6 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { mintApiKey } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
 import { isValidHandle } from "@/lib/slug";
 import { apiKeys, channelMembers, channels } from "@/server/db/schema/channels";
 import { channelProcedure, createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
@@ -211,6 +212,15 @@ export const channelRouter = createTRPCRouter({
                 createdById: ctx.user.id,
             });
 
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "apiKey.generate",
+                targetType: "apiKey",
+                targetId: minted.id,
+                details: { channelId: input.channelId, name: input.name },
+                headers: ctx.headers,
+            });
+
             return {
                 id: minted.id,
                 plaintext: minted.plaintext,
@@ -233,6 +243,15 @@ export const channelRouter = createTRPCRouter({
             if (!revoked) {
                 throw new TRPCError({ code: "NOT_FOUND", message: "API key not found or already revoked." });
             }
+
+            recordAudit({
+                actorId: ctx.user.id,
+                action: "apiKey.revoke",
+                targetType: "apiKey",
+                targetId: revoked.id,
+                details: { channelId: input.channelId },
+                headers: ctx.headers,
+            });
 
             return { id: revoked.id };
         }),

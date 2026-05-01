@@ -11,6 +11,7 @@ import { DocumentTitle } from "@/components/watch/DocumentTitle";
 import { UpNextSidebar } from "@/components/watch/UpNextSidebar";
 import { CommentTree } from "@/components/comments/CommentTree";
 import { ShareButton } from "@/components/watch/ShareButton";
+import { TranscriptToggleButton } from "@/components/watch/TranscriptToggleButton";
 import { AddToPlaylistButton } from "@/components/playlist/AddToPlaylistButton";
 import { AddToWatchLaterChip } from "@/components/social/AddToWatchLaterChip";
 import { TagChipRow } from "@/components/video/TagChip";
@@ -192,6 +193,18 @@ export default async function WatchPage({ params, searchParams }: WatchPageProps
                                             videoId={video.id}
                                             slug={video.unlistedSlug ?? undefined}
                                             isPrivate={video.privacy === "private"}
+                                        />
+                                    </ActionGroup>
+
+                                    <ActionGroup>
+                                        <TranscriptToggleButton
+                                            videoId={video.id}
+                                            captions={captions.map((c) => ({
+                                                lang: c.lang,
+                                                label: c.label,
+                                                isDefault: c.isDefault,
+                                            }))}
+                                            signedToken={signedToken}
                                         />
                                     </ActionGroup>
 

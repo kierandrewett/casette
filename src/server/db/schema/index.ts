@@ -14,3 +14,5 @@ export * from "./notifications";
 export * from "./jobs";
 export * from "./webhooks";
 export * from "./site";
+export * from "./metrics";
+export * from "./audit";

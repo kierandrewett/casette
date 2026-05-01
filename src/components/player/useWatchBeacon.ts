@@ -30,12 +30,14 @@ export const useWatchBeacon = ({ videoId, getPositionSec, seek }: UseWatchBeacon
     const hasOfferedResume = useRef(false);
 
     const sendBeacon = (positionSec: number) => {
+        // Single-procedure tRPC POST shape. The batched form
+        // (`{"0": {"json": ...}}`) only works against `?batch=1` URLs; this
+        // POST hits the un-batched URL so it must use the bare `{json: ...}`
+        // wrapper. The previous batched body was returning 400 "Required".
         const body = JSON.stringify({
-            "0": {
-                json: {
-                    videoId,
-                    positionSec: Math.floor(positionSec),
-                },
+            json: {
+                videoId,
+                positionSec: Math.floor(positionSec),
             },
         });
 

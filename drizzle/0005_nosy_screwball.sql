@@ -1,0 +1,1 @@
+ALTER TABLE "video_captions" ADD COLUMN "is_auto_generated" boolean DEFAULT false NOT NULL;

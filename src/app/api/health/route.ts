@@ -1,6 +1,8 @@
-import { sql } from "drizzle-orm";
+import { count, eq, or, sql } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
+import { transcodeJobs } from "@/server/db/schema/jobs";
+import { videos } from "@/server/db/schema/videos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,13 +18,27 @@ export const dynamic = "force-dynamic";
 const startTime = Date.now();
 
 export async function GET(): Promise<Response> {
-    const checks: Record<string, "ok" | string> = {};
+    const checks: Record<string, "ok" | string | number> = {};
     let overallOk = true;
 
-    // DB ping
+    // DB ping + lightweight stats (single round-trip each, best-effort).
     try {
         await db.execute(sql`select 1`);
         checks["db"] = "ok";
+
+        const [pendingRows, activeVideoRows] = await Promise.all([
+            db
+                .select({ cnt: count(transcodeJobs.id) })
+                .from(transcodeJobs)
+                .where(or(eq(transcodeJobs.state, "queued"), eq(transcodeJobs.state, "running"))),
+            db
+                .select({ cnt: count(videos.id) })
+                .from(videos)
+                .where(sql`${videos.privacy} = 'public' AND ${videos.status} = 'ready'`),
+        ]);
+
+        checks["transcodeJobsPending"] = Number(pendingRows[0]?.cnt ?? 0);
+        checks["activeVideos"] = Number(activeVideoRows[0]?.cnt ?? 0);
     } catch (err) {
         overallOk = false;
         checks["db"] = err instanceof Error ? err.message : "error";

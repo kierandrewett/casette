@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 
 import { HlsAccessError, assertPlayableForRequest } from "@/lib/hls/access";
 import { parseRange } from "@/lib/hls/range";
+import { recordBandwidth } from "@/lib/metrics/bandwidth";
 import { hlsSegmentPath } from "@/lib/paths";
 import { db } from "@/server/db/client";
 import { videos } from "@/server/db/schema/videos";
@@ -63,6 +64,8 @@ export async function GET(
     if (!rangeHeader) {
         // Full file response.
         const stream = Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>;
+        // Record bandwidth fire-and-forget — must not await before returning.
+        void recordBandwidth({ channelId: video.channelId, bytes: fileSize });
         return new NextResponse(stream, {
             status: 200,
             headers: {
@@ -90,6 +93,8 @@ export async function GET(
         createReadStream(filePath, { start, end }),
     ) as ReadableStream<Uint8Array>;
 
+    // Record bandwidth fire-and-forget — must not await before returning.
+    void recordBandwidth({ channelId: video.channelId, bytes: length });
     return new NextResponse(stream, {
         status: 206,
         headers: {

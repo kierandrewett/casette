@@ -293,6 +293,21 @@ const runPipeline = async (videoId: string): Promise<void> => {
     // webhooks failure can never propagate into the pipeline.
     const { fanoutVideoEvent } = await import("@/lib/webhooks/fanout");
     void fanoutVideoEvent({ videoId, event: "transcode.completed" });
+
+    // Whisper auto-captions, opt-in via WHISPER_AUTO. The transcribe handler
+    // checks isWhisperAvailable() itself so this is also a no-op if neither
+    // a binary nor an API URL is configured.
+    if (env.WHISPER_AUTO) {
+        const { ensureBoss } = await import("@/worker/boot");
+        const boss = await ensureBoss().catch(() => null);
+        if (boss) {
+            await boss
+                .send("transcribe-video", { videoId }, { retryLimit: 1, expireInHours: 12 })
+                .catch((err) => {
+                    console.warn("[transcode] could not enqueue transcribe-video:", err);
+                });
+        }
+    }
 };
 
 // ------------------------------------------------------------------

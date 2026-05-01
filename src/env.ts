@@ -31,6 +31,27 @@ const serverSchema = z.object({
     SMTP_URL: z.string().url().optional(),
     // MAIL_FROM is the sender address used in transactional email.
     MAIL_FROM: z.string().email().optional(),
+    // METRICS_TOKEN optionally gates the /api/metrics Prometheus endpoint.
+    // When set, requests must supply `Authorization: Bearer <token>`.
+    // When absent, the endpoint is open (suitable for a private network).
+    METRICS_TOKEN: z.string().optional(),
+    // Whisper auto-captions. Two paths:
+    //   - WHISPER_BINARY_PATH + WHISPER_MODEL_PATH for whisper.cpp on the host.
+    //   - WHISPER_API_URL (+ WHISPER_API_KEY) for an external Whisper-
+    //     compatible HTTP endpoint.
+    // Worker prefers the binary when both are set.
+    WHISPER_BINARY_PATH: z.string().optional(),
+    WHISPER_MODEL_PATH: z.string().optional(),
+    WHISPER_API_URL: z.string().url().optional(),
+    WHISPER_API_KEY: z.string().optional(),
+    // When true, fan out a transcribe-video job after every successful
+    // transcode. Otherwise transcription is admin-triggered only.
+    WHISPER_AUTO: z
+        .preprocess(
+            (v) => (typeof v === "string" ? ["1", "true", "yes", "on"].includes(v.toLowerCase()) : v),
+            z.boolean(),
+        )
+        .default(false),
 });
 
 const clientSchema = z.object({
@@ -53,6 +74,12 @@ const parsed = serverSchema.safeParse({
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     SMTP_URL: process.env.SMTP_URL,
     MAIL_FROM: process.env.MAIL_FROM,
+    METRICS_TOKEN: process.env.METRICS_TOKEN,
+    WHISPER_BINARY_PATH: process.env.WHISPER_BINARY_PATH,
+    WHISPER_MODEL_PATH: process.env.WHISPER_MODEL_PATH,
+    WHISPER_API_URL: process.env.WHISPER_API_URL,
+    WHISPER_API_KEY: process.env.WHISPER_API_KEY,
+    WHISPER_AUTO: process.env.WHISPER_AUTO,
 });
 
 if (!parsed.success) {

@@ -238,6 +238,22 @@ const PlayerInner = ({
         return () => document.removeEventListener("keydown", onKey);
     }, [remote, player, toggleTheatre, setShortcutsOpen]);
 
+    // Broadcast current playback position as a DOM event so external components
+    // (e.g. TranscriptSidebar) can highlight the active cue without coupling
+    // to Vidstack internals.  Throttled to 250 ms to keep DOM event volume low.
+    useEffect(() => {
+        if (!player) return;
+        let lastEmitMs = 0;
+        return player.subscribe(({ currentTime }) => {
+            const nowMs = Date.now();
+            if (nowMs - lastEmitMs < 250) return;
+            lastEmitMs = nowMs;
+            window.dispatchEvent(
+                new CustomEvent("cassette:position", { detail: { seconds: currentTime } }),
+            );
+        });
+    }, [player]);
+
     // Watch progress beacon wiring.
     const getPositionSec = () => player?.state.currentTime ?? 0;
     const seek = (seconds: number) => remote.seek(seconds);
