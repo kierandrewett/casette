@@ -104,10 +104,7 @@ export const PlayerBottomBar = ({ videoId, chapters, variants: _variants, active
                             element ordering otherwise lets the buffered band
                             paint over the played fill on some browsers. */}
                         <TimeSlider.Progress className="absolute inset-y-0 left-0 z-0 rounded-full bg-white/35 will-change-[width]" />
-                        <TimeSlider.TrackFill
-                            className="absolute inset-y-0 left-0 z-10 rounded-full will-change-[width]"
-                            style={{ background: "hsl(var(--primary))" }}
-                        />
+                        <TimeSlider.TrackFill className="player-track-fill absolute inset-y-0 left-0 z-10 rounded-full will-change-[width]" />
                     </TimeSlider.Track>
 
                     {/* Visible playhead — small white dot that grows on hover/drag.

@@ -122,8 +122,13 @@ export const Player = ({
             // outline that flashed when pressing Space (the play/pause
             // shortcut) — the chrome already shows pause/play state, the
             // ring on the canvas was just visual noise.
-            className="relative w-full overflow-hidden bg-black [--media-focus-ring:transparent]"
-            style={{ aspectRatio: "16/9" }}
+            // aspect-video keeps the player at 16:9 in normal layout. Vidstack
+            // adds data-fullscreen="true" when in fullscreen; the
+            // accompanying selector in globals.css strips the aspect ratio
+            // so the player fills 100vw × 100vh (with the inner <video>
+            // letterboxing via object-fit) instead of maintaining 16:9
+            // and leaving a black gutter on wider monitors.
+            className="cassette-player relative aspect-video w-full overflow-hidden bg-black [--media-focus-ring:transparent]"
             src={`/api/hls/${video.id}/master.m3u8${tokenQS}`}
             crossOrigin
             playsInline
