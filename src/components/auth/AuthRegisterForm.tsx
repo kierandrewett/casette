@@ -44,7 +44,10 @@ export const AuthRegisterForm = () => {
             return;
         }
 
-        router.push("/studio");
+        // First-run onboarding wizard sets up the user's first channel
+        // (name, libravatar opt-in, handle, about). Existing users get
+        // redirected onward by the page itself if they already have one.
+        router.push("/onboarding/channel");
         router.refresh();
     };
 
