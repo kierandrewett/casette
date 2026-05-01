@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
     Home09Icon,
@@ -134,6 +134,7 @@ export const LeftRail = ({
     isAuthenticated = false,
 }: LeftRailProps) => {
     const pathname = usePathname();
+    const router = useRouter();
     const t = useTranslations("nav");
 
     return (
@@ -201,15 +202,22 @@ export const LeftRail = ({
                                                 active={active}
                                                 avatar={<ChannelAvatar channel={channel} />}
                                                 trailing={
-                                                    <Link
-                                                        href={studioHref}
-                                                        onClick={(e) => e.stopPropagation()}
+                                                    // Plain button — nested <Link> inside the
+                                                    // RailLink anchor would emit invalid <a><a/></a>
+                                                    // HTML and trip a hydration error.
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            router.push(studioHref);
+                                                        }}
                                                         title="Open in Studio"
                                                         aria-label={`Open ${channel.name} in Studio`}
                                                         className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                                                     >
                                                         <Settings02Icon size={14} strokeWidth={1.7} />
-                                                    </Link>
+                                                    </button>
                                                 }
                                             />
                                         </li>
