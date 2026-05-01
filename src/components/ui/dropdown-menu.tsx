@@ -40,8 +40,9 @@ const DropdownMenuSubContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <DropdownMenuPrimitive.SubContent
         ref={ref}
+        collisionPadding={8}
         className={cn(
-            "surface-glass z-50 min-w-[8rem] overflow-hidden rounded-xl p-1 text-popover-foreground shadow-xl",
+            "surface-glass z-50 max-h-[var(--radix-dropdown-menu-content-available-height,80vh)] min-w-[8rem] overflow-y-auto rounded-xl p-1 text-popover-foreground shadow-xl",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -63,8 +64,14 @@ const DropdownMenuContent = React.forwardRef<
         <DropdownMenuPrimitive.Content
             ref={ref}
             sideOffset={sideOffset}
+            collisionPadding={8}
             className={cn(
-                "surface-glass z-50 min-w-[8rem] overflow-hidden rounded-xl p-1 text-popover-foreground shadow-xl",
+                // overflow-y-auto + max-h on the radix-provided available
+                // height keeps tall menus inside the viewport instead of
+                // clipping the top/bottom rows. Without this the content
+                // got cut off when the dropdown was longer than the gap
+                // between the trigger and the screen edge.
+                "surface-glass z-50 max-h-[var(--radix-dropdown-menu-content-available-height,80vh)] min-w-[8rem] overflow-y-auto rounded-xl p-1 text-popover-foreground shadow-xl",
                 "data-[state=open]:animate-in data-[state=closed]:animate-out",
                 "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
                 "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
