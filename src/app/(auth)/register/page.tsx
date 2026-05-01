@@ -10,7 +10,10 @@ export const metadata: Metadata = {
 
 const RegisterPage = async () => {
     const mode = await getPrivacyMode();
-    if (mode === "login-only") {
+    // Closed-registration modes hide the page outright. login-only forbids
+    // both browsing and signing up; public-closed allows anonymous viewing
+    // but still blocks new accounts.
+    if (mode === "login-only" || mode === "public-closed") {
         notFound();
     }
 

@@ -13,6 +13,12 @@ const MODES: { value: PrivacyMode; label: string; description: string }[] = [
             "Anonymous visitors can browse and watch public videos. Sign-up is open to everyone. This is the default behaviour.",
     },
     {
+        value: "public-closed",
+        label: "Public (closed registration)",
+        description:
+            "Anonymous viewing stays open — anyone can browse and watch public videos — but the registration page is disabled and the sign-up API returns 403. New accounts must be created by an admin via the Users panel.",
+    },
+    {
         value: "login-required",
         label: "Login required",
         description:

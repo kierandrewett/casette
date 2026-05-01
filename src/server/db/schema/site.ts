@@ -3,7 +3,12 @@ import { check, integer, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg
 
 import { user } from "./auth";
 
-export const privacyModeEnum = pgEnum("privacy_mode", ["public", "login-required", "login-only"]);
+export const privacyModeEnum = pgEnum("privacy_mode", [
+    "public",
+    "public-closed",
+    "login-required",
+    "login-only",
+]);
 
 export type PrivacyMode = (typeof privacyModeEnum.enumValues)[number];
 

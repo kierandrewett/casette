@@ -12,10 +12,12 @@ const handlers = toNextJsHandler(auth.handler);
 export const { GET } = handlers;
 
 export async function POST(req: NextRequest): Promise<Response> {
-    // Block new registrations when the site is in login-only mode.
+    // Block new registrations when the site has closed sign-up.
+    // Both `login-only` (login-required + closed sign-up) and `public-closed`
+    // (public viewing + closed sign-up) reject new accounts.
     if (req.nextUrl.pathname === "/api/auth/sign-up/email") {
         const mode = await getPrivacyMode();
-        if (mode === "login-only") {
+        if (mode === "login-only" || mode === "public-closed") {
             return new Response(
                 JSON.stringify({ error: "Registration is disabled. Please contact an administrator." }),
                 { status: 403, headers: { "Content-Type": "application/json" } },

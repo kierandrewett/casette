@@ -78,7 +78,11 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     // memoised in-process for 30 s.
     const mode = await getPrivacyMode();
 
-    if (mode === "public") {
+    // public AND public-closed both allow anonymous viewing — the only
+    // difference is that public-closed disables sign-up (handled in the
+    // /api/auth and /register paths). Middleware-wise they are identical:
+    // anonymous viewers reach the site without a redirect.
+    if (mode === "public" || mode === "public-closed") {
         return NextResponse.next();
     }
 
