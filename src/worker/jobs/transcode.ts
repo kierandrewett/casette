@@ -278,6 +278,12 @@ const runPipeline = async (videoId: string): Promise<void> => {
             updatedAt: new Date(),
         })
         .where(eq(videos.id, videoId));
+
+    // Fan out new-upload notifications to subscribers. Best-effort: any
+    // failure inside notifyNewUpload is logged but does not propagate, so a
+    // notifications outage cannot fail the transcode itself.
+    const { notifyNewUpload } = await import("@/lib/notifications/fanout");
+    await notifyNewUpload(videoId);
 };
 
 // ------------------------------------------------------------------

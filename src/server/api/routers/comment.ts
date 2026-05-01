@@ -313,44 +313,41 @@ export const commentRouter = createTRPCRouter({
                 })
                 .returning();
 
-            return inserted[0]!;
+            const reply = inserted[0]!;
+
+            // Best-effort fan-out: notify the parent author. Failures are
+            // logged inside the helper, never thrown.
+            const { notifyCommentReply } = await import("@/lib/notifications/fanout");
+            void notifyCommentReply(reply.id);
+
+            return reply;
         }
 
-        // Top-level path: rootId must equal the new comment's own id.
-        // Use a CTE with RETURNING so we can set rootId = id in one round-trip.
-        const result = await ctx.db.execute(sql`
-            WITH ins AS (
-                INSERT INTO comments (video_id, author_id, body)
-                VALUES (${input.videoId}::uuid, ${ctx.user.id}, ${body})
-                RETURNING *
-            )
-            UPDATE comments
-            SET root_id = ins.id
-            FROM ins
-            WHERE comments.id = ins.id
-            RETURNING comments.*
-        `);
+        // Top-level path: rootId must equal the new comment's own id. The
+        // earlier CTE-and-update one-shot did not survive postgres-js's
+        // RowList shape; two statements in a transaction are clear and just
+        // as fast in practice. The transaction keeps rootId consistent.
+        const inserted = await ctx.db.transaction(async (tx) => {
+            const [row] = await tx
+                .insert(comments)
+                .values({
+                    videoId: input.videoId,
+                    authorId: ctx.user.id,
+                    body,
+                })
+                .returning();
+            if (!row) {
+                throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create comment." });
+            }
+            const [updated] = await tx
+                .update(comments)
+                .set({ rootId: row.id })
+                .where(eq(comments.id, row.id))
+                .returning();
+            return updated ?? { ...row, rootId: row.id };
+        });
 
-        // postgres-js returns a RowList which is array-like.
-        const rows = Array.from(result) as Array<Record<string, unknown>>;
-        const row = rows[0];
-        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create comment." });
-        // Map snake_case columns back to camelCase for the caller.
-        return {
-            id: row["id"] as string,
-            videoId: row["video_id"] as string,
-            authorId: (row["author_id"] as string | null) ?? null,
-            parentId: (row["parent_id"] as string | null) ?? null,
-            rootId: (row["root_id"] as string | null) ?? null,
-            body: row["body"] as string,
-            isPinned: (row["is_pinned"] as boolean) ?? false,
-            isHearted: (row["is_hearted"] as boolean) ?? false,
-            editedAt: (row["edited_at"] as Date | null) ?? null,
-            deletedAt: (row["deleted_at"] as Date | null) ?? null,
-            likeCount: (row["like_count"] as number) ?? 0,
-            dislikeCount: (row["dislike_count"] as number) ?? 0,
-            createdAt: row["created_at"] as Date,
-        } satisfies typeof comments.$inferSelect;
+        return inserted;
     }),
 
     // Protected: edit own comment within 15-minute window.

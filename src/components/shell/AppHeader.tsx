@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef } from "react";
-import { Menu, Search, Upload, Bell, Settings, Clapperboard, LogOut, User } from "lucide-react";
+import { Menu, Search, Upload, Settings, Clapperboard, LogOut, User } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { CassetteWordmark } from "@/components/branding/CassetteWordmark";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 
 export interface AppHeaderUser {
@@ -139,15 +140,8 @@ export const AppHeader = ({ user, onMenuToggle }: AppHeaderProps) => {
                     </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Notifications bell (placeholder) */}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Notifications"
-                    className="rounded-lg text-muted-foreground hover:text-foreground"
-                >
-                    <Bell className="h-5 w-5" />
-                </Button>
+                {/* Notifications bell — disabled when signed out so we do not poll. */}
+                <NotificationBell enabled={!!user} />
 
                 {/* Account dropdown */}
                 {user ? (

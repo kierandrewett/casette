@@ -151,4 +151,99 @@ seg_status=$(curl -s -o /dev/null -w "%{http_code} %{size_download}" -H "Range: 
 log "  seg status (code size): $seg_status"
 [[ "$seg_status" == 206* ]] || fail "segment Range request did not return 206"
 
+# ---------------------------------------------------------------------------
+# 9. watch page renders
+# ---------------------------------------------------------------------------
+log "fetch /watch/<videoId>"
+watch_status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/watch/$VIDEO_ID")
+log "  /watch/$VIDEO_ID -> $watch_status"
+[[ "$watch_status" == "200" ]] || fail "watch page did not render 200"
+
+# ---------------------------------------------------------------------------
+# 10. social: subscribe + like + comment
+# ---------------------------------------------------------------------------
+log "subscription.subscribe"
+sub_body=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -H "Content-Type: application/json" \
+    -X POST "$BASE_URL/api/trpc/subscription.subscribe" \
+    -d "{\"json\":{\"channelId\":\"$CHANNEL_ID\"}}")
+echo "  -> $sub_body" | head -c 200; echo
+echo "$sub_body" | grep -q '"data"' || fail "subscribe failed"
+
+log "like.toggleVideo (like)"
+like_body=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -H "Content-Type: application/json" \
+    -X POST "$BASE_URL/api/trpc/like.toggleVideo" \
+    -d "{\"json\":{\"videoId\":\"$VIDEO_ID\",\"kind\":\"like\"}}")
+echo "  -> $like_body" | head -c 200; echo
+echo "$like_body" | grep -q '"data"' || fail "like failed"
+
+log "comment.create"
+comment_body=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -H "Content-Type: application/json" \
+    -X POST "$BASE_URL/api/trpc/comment.create" \
+    -d "{\"json\":{\"videoId\":\"$VIDEO_ID\",\"body\":\"automated smoke comment\"}}")
+echo "  -> $comment_body" | head -c 200; echo
+echo "$comment_body" | grep -q '"id"' || fail "comment.create failed"
+
+log "comment.list"
+list_body=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    "$BASE_URL/api/trpc/comment.list?input=$(python3 -c "import urllib.parse,json;print(urllib.parse.quote(json.dumps({'json':{'videoId':'$VIDEO_ID'}})))")")
+items_count=$(echo "$list_body" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(len(d["result"]["data"]["json"]["items"]))')
+log "  comment count: $items_count"
+[[ "$items_count" -ge 1 ]] || fail "comment.list returned no items"
+
+# ---------------------------------------------------------------------------
+# 11. library: queue + watch later
+# ---------------------------------------------------------------------------
+log "playlist.queue.add"
+queue_add=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -H "Content-Type: application/json" \
+    -X POST "$BASE_URL/api/trpc/playlist.queue.add" \
+    -d "{\"json\":{\"videoId\":\"$VIDEO_ID\"}}")
+echo "  -> $queue_add" | head -c 200; echo
+
+log "playlist.queue.list"
+queue_list=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    "$BASE_URL/api/trpc/playlist.queue.list?input=$(python3 -c 'import urllib.parse,json;print(urllib.parse.quote(json.dumps({"json":None})))')")
+echo "  -> $queue_list" | head -c 200; echo
+
+log "playlist.watchLater.add"
+wl=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -H "Content-Type: application/json" \
+    -X POST "$BASE_URL/api/trpc/playlist.watchLater.add" \
+    -d "{\"json\":{\"videoId\":\"$VIDEO_ID\"}}")
+echo "  -> $wl" | head -c 200; echo
+
+# ---------------------------------------------------------------------------
+# 12. search
+# ---------------------------------------------------------------------------
+log "search.videos q=Smoke"
+search_body=$(curl -fsS "$BASE_URL/api/trpc/search.videos?input=$(python3 -c "import urllib.parse,json;print(urllib.parse.quote(json.dumps({'json':{'q':'Smoke'}})))")")
+hits=$(echo "$search_body" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(len(d["result"]["data"]["json"]["items"]))')
+log "  hits: $hits"
+[[ "$hits" -ge 1 ]] || fail "search returned no hits"
+
+log "/search?q=Smoke renders"
+search_status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/search?q=Smoke")
+[[ "$search_status" == "200" ]] || fail "/search did not render 200"
+
+# ---------------------------------------------------------------------------
+# 13. watch progress beacon
+# ---------------------------------------------------------------------------
+log "video.recordProgress"
+prog=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -H "Content-Type: application/json" \
+    -X POST "$BASE_URL/api/trpc/video.recordProgress" \
+    -d "{\"json\":{\"videoId\":\"$VIDEO_ID\",\"positionSec\":2}}")
+echo "  -> $prog" | head -c 200; echo
+
+# ---------------------------------------------------------------------------
+# 14. notifications: a second user subscribes; new upload fans out
+# ---------------------------------------------------------------------------
+log "notification.unreadCount (first user)"
+nc=$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    "$BASE_URL/api/trpc/notification.unreadCount?input=$(python3 -c 'import urllib.parse,json;print(urllib.parse.quote(json.dumps({"json":None})))')")
+echo "  -> $nc" | head -c 200; echo
+
 log "DONE - all smoke checks pass"
