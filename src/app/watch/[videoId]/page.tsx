@@ -8,7 +8,7 @@ import AppShell from "@/components/shell/AppShell";
 import { Player } from "@/components/player/Player";
 import { Description } from "@/components/watch/Description";
 import { UpNextSidebar } from "@/components/watch/UpNextSidebar";
-import { CommentsPlaceholder } from "@/components/watch/CommentsPlaceholder";
+import { CommentTree } from "@/components/comments/CommentTree";
 import { ShareButton } from "@/components/watch/ShareButton";
 import { formatCount, formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -205,9 +205,11 @@ export default async function WatchPage({ params, searchParams }: WatchPageProps
                             <Description text={video.description} />
                         </div>
 
-                        {/* Comments placeholder — B2 lands the real CommentTree in M6 */}
-                        <div className="mt-6">
-                            <CommentsPlaceholder />
+                        {/* Threaded comments. CommentTree handles its own
+                            fetch and pagination via tRPC; signed-out viewers
+                            see read-only mode with a "Sign in to comment" CTA. */}
+                        <div className="mt-6" id="comments">
+                            <CommentTree videoId={video.id} />
                         </div>
                     </div>
 
