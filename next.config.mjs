@@ -27,7 +27,10 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const CSP_DEFAULT = [
     "default-src 'self'",
     "media-src 'self' blob:",
-    "img-src 'self' data: https://www.libravatar.org https://www.gravatar.com",
+    // https: lets channel-uploaded thumbnails (yt-dlp imports point at the
+    // remote CDN) and any future image source resolve. Self + data: cover
+    // local thumbnails and inline avatars.
+    "img-src 'self' data: blob: https:",
     "connect-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "script-src 'self' 'unsafe-inline'",
@@ -48,7 +51,7 @@ const baseSecurityHeaders = [
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
     {
         key: "Permissions-Policy",
-        value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+        value: "camera=(), microphone=(), geolocation=()",
     },
     // X-Frame-Options is superseded by CSP frame-ancestors but kept for
     // legacy clients (older Safari/Edge). The /embed/** override removes it.
@@ -115,7 +118,7 @@ const nextConfig = {
                     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
                     {
                         key: "Permissions-Policy",
-                        value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+                        value: "camera=(), microphone=(), geolocation=()",
                     },
                     ...hstsHeader,
                     { key: "Content-Security-Policy", value: CSP_EMBED },
