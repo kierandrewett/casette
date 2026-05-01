@@ -2,17 +2,28 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Video01Icon, EyeIcon, UserMultipleIcon, HddIcon, UploadCircle01Icon, Comment01Icon } from "hugeicons-react";
+import {
+    ArrowRight02Icon,
+    Comment01Icon,
+    EyeIcon,
+    GlobeIcon,
+    HddIcon,
+    PaintBoardIcon,
+    UploadCircle01Icon,
+    UserMultipleIcon,
+    Video01Icon,
+} from "hugeicons-react";
 import { and, count, desc, eq, isNull, sum } from "drizzle-orm";
 
 import { StatCard } from "@/components/studio/StatCard";
 import { StudioEmptyState } from "@/components/studio/StudioEmptyState";
+import { StudioPageHeader } from "@/components/studio/StudioPageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/server";
 import { db } from "@/server/db/client";
 import { videos } from "@/server/db/schema/videos";
 import { comments, subscriptions } from "@/server/db/schema/social";
-import { formatCount, formatRelativeTime } from "@/lib/utils";
+import { cn, formatCount, formatRelativeTime } from "@/lib/utils";
 
 type Props = {
     params: Promise<{ handle: string }>;
@@ -50,6 +61,49 @@ const statusClass = (status: string): string => {
     }
 };
 
+interface QuickActionProps {
+    href: string;
+    label: string;
+    description: string;
+    icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+    accent?: "primary" | "neutral";
+    external?: boolean;
+}
+
+const QuickAction = ({ href, label, description, icon: Icon, accent = "neutral", external }: QuickActionProps) => (
+    <Link
+        href={href}
+        target={external ? "_blank" : undefined}
+        rel={external ? "noopener noreferrer" : undefined}
+        className={cn(
+            "group flex items-start gap-3 rounded-xl border p-4 transition-colors",
+            accent === "primary"
+                ? "border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10"
+                : "border-border bg-card hover:border-foreground/20 hover:bg-accent/40",
+        )}
+    >
+        <span
+            className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                accent === "primary" ? "bg-primary text-primary-foreground" : "bg-accent/60 text-foreground",
+            )}
+        >
+            <Icon size={18} strokeWidth={1.8} />
+        </span>
+        <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                {label}
+                <ArrowRight02Icon
+                    size={14}
+                    strokeWidth={1.8}
+                    className="text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+                />
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        </div>
+    </Link>
+);
+
 const StudioChannelOverviewPage = async ({ params }: Props) => {
     const { handle } = await params;
 
@@ -65,9 +119,6 @@ const StudioChannelOverviewPage = async ({ params }: Props) => {
         notFound();
     }
 
-    // Fetch overview data in parallel: stats aggregates, last 5 uploads, recent
-    // comments across the channel's videos, and disk usage. Each query is
-    // best-effort; failures are swallowed and the affected card simply shows 0.
     const [videoStatsRow, subsRow, recentVideos, usage, recentComments] = await Promise.all([
         db
             .select({
@@ -107,18 +158,27 @@ const StudioChannelOverviewPage = async ({ params }: Props) => {
 
     return (
         <>
-            {/* Page header — sits below the sticky subnav and gives the surface
-                a clear identity beyond just the channel chip. */}
-            <header className="mb-6">
-                <h1 className="text-2xl font-semibold tracking-tight">Channel dashboard</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    A quick look at your latest activity on{" "}
-                    <span className="font-medium text-foreground">@{membership.handle}</span>.
-                </p>
-            </header>
+            <StudioPageHeader
+                title="Channel dashboard"
+                description={
+                    <>
+                        A quick look at activity on{" "}
+                        <span className="font-medium text-foreground">@{membership.handle}</span>.
+                    </>
+                }
+                actions={
+                    <Link
+                        href={`/studio/channel/${handle}/upload`}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+                    >
+                        <UploadCircle01Icon size={16} strokeWidth={1.8} />
+                        Upload video
+                    </Link>
+                }
+            />
 
             {/* Stat cards row */}
-            <section aria-label="Channel statistics" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <section aria-label="Channel statistics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatCard icon={Video01Icon} label="Videos" value={formatCount(totalVideos)} />
                 <StatCard icon={EyeIcon} label="Total views" value={formatCount(totalViews)} />
                 <StatCard icon={UserMultipleIcon} label="Subscribers" value={formatCount(subscribers)} />
@@ -128,6 +188,36 @@ const StudioChannelOverviewPage = async ({ params }: Props) => {
                     value={usage ? formatBytes(usage.used) : "—"}
                     hint={usage?.quota ? `of ${formatBytes(usage.quota)}` : usage ? "no quota set" : undefined}
                 />
+            </section>
+
+            {/* Quick actions — three big buttons (or two when nothing's
+                uploaded yet, but always render the trio for consistency). */}
+            <section aria-label="Quick actions" className="mt-8">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Quick actions
+                </h2>
+                <div className="grid gap-3 sm:grid-cols-3">
+                    <QuickAction
+                        href={`/studio/channel/${handle}/upload`}
+                        label="Upload video"
+                        description="Add a new video to this channel."
+                        icon={UploadCircle01Icon}
+                        accent="primary"
+                    />
+                    <QuickAction
+                        href={`/studio/channel/${handle}/customise`}
+                        label="Customise channel"
+                        description="Branding, description, trailer."
+                        icon={PaintBoardIcon}
+                    />
+                    <QuickAction
+                        href={`/channel/${handle}`}
+                        label="View public channel"
+                        description="See what visitors see."
+                        icon={GlobeIcon}
+                        external
+                    />
+                </div>
             </section>
 
             {!hasContent ? (
@@ -140,9 +230,9 @@ const StudioChannelOverviewPage = async ({ params }: Props) => {
                     />
                 </div>
             ) : (
-                <div className="mt-8 grid gap-6 lg:grid-cols-3">
-                    {/* Recent uploads — spans 2 cols on large screens. */}
-                    <Card className="lg:col-span-2">
+                <div className="mt-8 grid gap-6 lg:grid-cols-2">
+                    {/* Recent uploads */}
+                    <Card>
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle className="text-base">Recent uploads</CardTitle>
                             <Link
@@ -188,7 +278,10 @@ const StudioChannelOverviewPage = async ({ params }: Props) => {
                                                 </p>
                                             </div>
                                             <span
-                                                className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${statusClass(video.status)}`}
+                                                className={cn(
+                                                    "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+                                                    statusClass(video.status),
+                                                )}
                                             >
                                                 {STATUS_LABELS[video.status] ?? video.status}
                                             </span>
@@ -201,12 +294,18 @@ const StudioChannelOverviewPage = async ({ params }: Props) => {
 
                     {/* Recent comments */}
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle className="text-base">Recent comments</CardTitle>
+                            <Link
+                                href={`/studio/channel/${handle}/moderation`}
+                                className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                            >
+                                Moderation queue
+                            </Link>
                         </CardHeader>
                         <CardContent>
                             {recentComments.length === 0 ? (
-                                <div className="flex flex-col items-center gap-2 py-6 text-center">
+                                <div className="flex flex-col items-center gap-2 py-8 text-center">
                                     <Comment01Icon size={20} strokeWidth={1.6} className="text-muted-foreground/70" />
                                     <p className="text-sm text-muted-foreground">No comments yet.</p>
                                 </div>
